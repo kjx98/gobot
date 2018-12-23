@@ -6,7 +6,7 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
-	"image/jpeg"
+	_ "image/jpeg"
 	"io/ioutil"
 	"math/rand"
 	"net/http"
@@ -19,7 +19,6 @@ import (
 	"time"
 
 	"github.com/kjx98/golib/to"
-	"github.com/qianlnk/qrcode"
 	"log"
 )
 
@@ -123,17 +122,14 @@ func (w *Wecat) GenQrcode() error {
 	uri := LoginBaseURL + "/qrcode/" + w.uuid + "?t=webwx&_=" + w.timestamp()
 
 	resp, err := w.get(uri)
-	qr := qrcode.NewQRCode("", false)
 
-	img, err := jpeg.Decode(bytes.NewReader([]byte(resp)))
+	err = dispJPEG([]byte(resp))
+	//img, err := jpeg.Decode(bytes.NewReader([]byte(resp)))
+
 	if err != nil {
+		fmt.Println("dispJPEG:", err)
 		return err
 	}
-
-	if err := qr.SetImage(img); err != nil {
-		return err
-	}
-	qr.Output()
 
 	return nil
 }
@@ -551,6 +547,9 @@ func (w *Wecat) Start() {
 	w.run("[*] init wecat ...", w.Init)
 	w.run("[*] open status notify ...", w.StatusNotify)
 	w.run("[*] get contact ...", w.GetContact)
+	for _, cc := range w.contacts {
+		fmt.Printf("%s,(%s),(%s)\n",cc.UserName, cc.NickName, cc.DisplayName)
+	}
 	w.run("[*] dail sync message ...", w.Dail)
 }
 
