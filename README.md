@@ -1,10 +1,12 @@
 # gobot
 golang 实现微信聊天机器人
 
+forked from github.com/qianlnk/gobot, remove depends on nonexist github.com/qianlnk/to
+
 ## 使用
 
 ```
-go get github.com/qianlnk/gobot
+go get github.com/kjx98/gobot
 ```
 
 ## 主要模块
@@ -21,7 +23,7 @@ go get github.com/qianlnk/gobot
 - 获取自动回复内容
 
 ## 源码地址
-[https://github.com/qianlnk/gobot](https://github.com/qianlnk/gobot)
+[https://github.com/kjx98/gobot](https://github.com/kjx98/gobot)
 
 ## 网页版微信API
 

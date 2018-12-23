@@ -18,9 +18,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/qianlnk/log"
+	"github.com/kjx98/golib/to"
 	"github.com/qianlnk/qrcode"
-	"github.com/qianlnk/to"
+	"log"
 )
 
 type Wecat struct {
@@ -60,7 +60,7 @@ var (
 func NewWecat(cfg Config) (*Wecat, error) {
 	jar, err := cookiejar.New(nil)
 	if err != nil {
-		log.Error("get cookiejar fail", err)
+		log.Print("get cookiejar fail", err)
 		return nil, err
 	}
 
@@ -91,7 +91,7 @@ func (w *Wecat) GetUUID() error {
 	//result: window.QRLogin.code = 200; window.QRLogin.uuid = "xxx"; //wx782c26e4c19acffb  wxeb7ec651dd0aefa9
 	data, err := w.get(uri)
 	if err != nil {
-		log.Error("get uuid fail", err)
+		log.Print("get uuid fail", err)
 		return err
 	}
 
@@ -116,7 +116,7 @@ func (w *Wecat) GetUUID() error {
 func (w *Wecat) GenQrcode() error {
 	if w.uuid == "" {
 		err := errors.New("haven't get uuid")
-		log.Error("gen qrcode fail", err)
+		log.Print("gen qrcode fail", err)
 		return err
 	}
 
@@ -153,10 +153,10 @@ func (w *Wecat) Login() error {
 			code := codes[1]
 			switch code {
 			case "201":
-				log.Info("scan code success")
+				log.Println("scan code success")
 				tip = 0
 			case "200":
-				log.Info("login success, wait to redirect")
+				log.Println("login success, wait to redirect")
 				re := regexp.MustCompile(`window.redirect_uri="(\S+?)";`)
 				redirctURIs := re.FindStringSubmatch(string(data))
 
@@ -167,18 +167,18 @@ func (w *Wecat) Login() error {
 					baseURIs := re.FindAllStringIndex(redirctURI, -1)
 					w.baseURI = redirctURI[:baseURIs[len(baseURIs)-1][0]]
 					if err := w.redirect(); err != nil {
-						log.Error(err)
+						log.Print(err)
 						return err
 					}
 					return nil
 				}
 
-				log.Error("get redirct URL fail")
+				log.Print("get redirct URL fail")
 
 			case "408":
-				log.Error("login timeout")
+				log.Print("login timeout")
 			default:
-				log.Error("login fail")
+				log.Print("login fail")
 			}
 		} else {
 			return errors.New("get code fail")
@@ -191,13 +191,13 @@ func (w *Wecat) Login() error {
 func (w *Wecat) redirect() error {
 	data, err := w.get(w.redirectURI)
 	if err != nil {
-		log.Error("redirct fail", err)
+		log.Print("redirct fail", err)
 		return err
 	}
 
 	var lr LoginResult
 	if err = xml.Unmarshal(data, &lr); err != nil {
-		log.Error("unmarshal fail", err)
+		log.Print("unmarshal fail", err)
 		return err
 	}
 
@@ -215,7 +215,7 @@ func (w *Wecat) Init() error {
 	params["BaseRequest"] = w.baseRequest
 	data, err := w.post(uri, params)
 	if err != nil {
-		log.Error("init post fail", err)
+		log.Print("init post fail", err)
 		return err
 	}
 
@@ -228,7 +228,7 @@ func (w *Wecat) Init() error {
 	w.syncKey = res.SyncKey
 
 	if res.BaseResponse.Ret != 0 {
-		log.Error("init fail ret <> 0")
+		log.Print("init fail ret <> 0")
 	}
 
 	return nil
@@ -258,7 +258,7 @@ func (w *Wecat) SyncCheck() (retcode, selector int) {
 
 		data, err := w.get(uri)
 		if err != nil {
-			//log.Error("sync check fail", err)
+			//log.Print("sync check fail", err)
 			continue
 		}
 
@@ -348,13 +348,13 @@ func (w *Wecat) WxSync() (*Message, error) {
 
 func (w *Wecat) run(desc string, f func() error) {
 	start := time.Now()
-	log.Info(desc)
+	log.Println(desc)
 	if err := f(); err != nil {
-		log.Error("FAIL, exit now", err)
+		log.Print("FAIL, exit now", err)
 		os.Exit(1)
 	}
 
-	log.Info("SUCCESS, use time", time.Now().Sub(start).Nanoseconds())
+	log.Println("SUCCESS, use time", time.Now().Sub(start).Nanoseconds())
 }
 
 func (w *Wecat) getReply(msg string, uid string) (string, error) {
@@ -504,7 +504,7 @@ func (w *Wecat) handle(msg *Message) error {
 				}
 			}
 		case 51:
-			log.Info("sync ok")
+			log.Println("sync ok")
 		}
 	}
 
@@ -516,21 +516,21 @@ func (w *Wecat) Dail() error {
 		retcode, selector := w.SyncCheck()
 		switch retcode {
 		case 1100:
-			log.Info("logout with phone, bye")
+			log.Println("logout with phone, bye")
 			return nil
 		case 1101:
-			log.Info("login web wecat at other palce, bye")
+			log.Println("login web wecat at other palce, bye")
 			return nil
 		case 0:
 			switch selector {
 			case 2:
 				msg, err := w.WxSync()
 				if err != nil {
-					log.Error(err)
+					log.Print(err)
 				}
 
 				if err := w.handle(msg); err != nil {
-					log.Error(err)
+					log.Print(err)
 				}
 			case 0:
 				time.Sleep(time.Second)
@@ -539,7 +539,7 @@ func (w *Wecat) Dail() error {
 				time.Sleep(time.Second)
 			}
 		default:
-			log.Warn("unknow code", retcode)
+			log.Print("unknow code", retcode)
 		}
 	}
 }

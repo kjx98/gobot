@@ -1,7 +1,8 @@
 package gobot
 
 import (
-	"github.com/qianlnk/config"
+	yaml "gopkg.in/yaml.v2"
+	"io/ioutil"
 )
 
 const (
@@ -23,8 +24,12 @@ type Tuling struct {
 
 func Load() Config {
 	var cfg Config
-	if err := config.Parse(&cfg, config.GetConfigAbsolutePath(ConfigFile)); err != nil {
+	if bb, err := ioutil.ReadFile(ConfigFile); err != nil {
 		panic(err)
+	} else {
+		if err := yaml.Unmarshal(bb, &cfg); err != nil {
+			panic(err)
+		}
 	}
 
 	return cfg
