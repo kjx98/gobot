@@ -23,7 +23,7 @@ func TestGetUUID(t *testing.T) {
 func TestTuling(t *testing.T) {
 	params := make(map[string]interface{})
 	params["userid"] = "123123123"
-	params["key"] = "808811ad0fd34abaa6fe800b44a9556a"
+	params["key"] = "b689c0a4af2f424f8ab3ad6bc323d36e"
 	params["info"] = "你好"
 
 	data, err := json.Marshal(params)

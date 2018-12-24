@@ -1,7 +1,7 @@
 tuling:
   url: http://www.tuling123.com/openapi/api
   keys: {
-    "lnk": {name: "lnkbot", key: "808811ad0fd34abaa6fe800b44a9556a"},
+    "test": {name: "gobot", key: "b689c0a4af2f424f8ab3ad6bc323d36e"},
   }
 
 log:

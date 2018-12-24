@@ -14,9 +14,10 @@ type Config struct {
 }
 
 type Rebot struct {
-	Name string `yaml: "Name"`
+	Name string `yaml:"Name"`
 	Key  string `yaml:"key"`
 }
+
 type Tuling struct {
 	URL  string           `yaml:"url"`
 	Keys map[string]Rebot `yaml:"keys"`

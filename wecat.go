@@ -6,7 +6,6 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
-	_ "image/jpeg"
 	"io/ioutil"
 	"math/rand"
 	"net/http"
@@ -18,8 +17,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kjx98/golib/to"
 	"log"
+
+	"github.com/kjx98/golib/to"
 )
 
 type Wecat struct {
@@ -46,8 +46,18 @@ const (
 )
 
 var (
+	errLoginFail    = errors.New("Login failed")
+	errLoginTimeout = errors.New("Login time out")
+	errGetCodeFail  = errors.New("get code fail")
+	errInit         = errors.New("init fail ret <> 0")
+)
+
+var (
 	Hosts = []string{
 		"webpush.wx.qq.com",
+		"webpush.weixin.qq.com",
+		"webpush.wx2.qq.com",
+		"webpush2.weixin.qq.com",
 		"webpush2.wx.qq.com",
 		"webpush.wechat.com",
 		"webpush1.wechat.com",
@@ -135,8 +145,19 @@ func (w *Wecat) GenQrcode() error {
 }
 
 func (w *Wecat) Login() error {
+	defer shutJpegWin()
+	return w.Relogin(false)
+}
+
+func (w *Wecat) Relogin(reLogin bool) error {
 	tip := 1
+	if reLogin {
+		tip = 0
+	}
 	for {
+		if !reLogin {
+			jpegLoop()
+		}
 		uri := fmt.Sprintf("%s/cgi-bin/mmwebwx-bin/login?tip=%d&uuid=%s&_=%s", LoginBaseURL, tip, w.uuid, w.timestamp())
 		data, err := w.get(uri)
 		if err != nil {
@@ -172,12 +193,16 @@ func (w *Wecat) Login() error {
 				log.Print("get redirct URL fail")
 
 			case "408":
-				log.Print("login timeout")
+				err := errLoginTimeout
+				log.Print(err)
+				return err
 			default:
-				log.Print("login fail")
+				err := errLoginFail
+				log.Print(err)
+				return err
 			}
 		} else {
-			return errors.New("get code fail")
+			return errGetCodeFail
 		}
 
 		time.Sleep(time.Second * time.Duration(2))
@@ -224,7 +249,14 @@ func (w *Wecat) Init() error {
 	w.syncKey = res.SyncKey
 
 	if res.BaseResponse.Ret != 0 {
-		log.Print("init fail ret <> 0")
+		log.Print(errInit, "errMsg:", res.BaseResponse.ErrMsg)
+	} else {
+		// 订阅号
+		/*
+			for _, cc := range res.MPSubscribeMsgList {
+				println(cc.UserName, " 订阅号:", cc.NickName)
+			}
+		*/
 	}
 
 	return nil
@@ -356,7 +388,7 @@ func (w *Wecat) run(desc string, f func() error) {
 func (w *Wecat) getReply(msg string, uid string) (string, error) {
 	params := make(map[string]interface{})
 	params["userid"] = uid
-	params["key"] = w.cfg.Tuling.Keys[w.user.NickName].Key
+	params["key"] = w.cfg.Tuling.Keys["test"].Key
 	params["info"] = msg
 
 	body, err := w.post(w.cfg.Tuling.URL, params)
@@ -392,10 +424,10 @@ func (w *Wecat) getReply(msg string, uid string) (string, error) {
 		}
 		return res, nil
 	default:
-		return "不知道你在说啥～", nil
+		return reply.Text, nil
 	}
 
-	return "哦", nil
+	// return "哦", nil
 }
 
 func (w *Wecat) SendMessage(message string, to string) error {
@@ -434,6 +466,7 @@ func (w *Wecat) handle(msg *Message) error {
 				contact.NickName = contact.UserName
 			}
 			w.contacts[contact.UserName] = contact
+			println("Mod contact", contact.UserName, contact.NickName)
 		}
 	}
 
@@ -448,6 +481,7 @@ func (w *Wecat) handle(msg *Message) error {
 					(w.user.RemarkName != "" && strings.Contains(content, "@"+w.user.RemarkName)) {
 					content = strings.Replace(content, "@"+w.user.NickName, "", -1)
 					content = strings.Replace(content, "@"+w.user.RemarkName, "", -1)
+					//println("From group: ", w.getNickName(m.FromUserName))
 					fmt.Println("[*] ", w.getNickName(m.FromUserName), ": ", content)
 					if w.auto {
 						reply, err := w.getReply(m.Content, m.FromUserName)
@@ -464,6 +498,7 @@ func (w *Wecat) handle(msg *Message) error {
 						fmt.Println("[#] ", w.user.NickName, ": ", reply)
 					}
 				} else {
+					log.Println("From group: ", w.getNickName(m.FromUserName))
 					contents := strings.Split(m.Content, ":<br/>")
 					fmt.Println("[*] ", w.getNickName(contents[0]), ": ", contents[1])
 				}
@@ -517,16 +552,18 @@ func (w *Wecat) Dail() error {
 		case 1101:
 			log.Println("login web wecat at other palce, bye")
 			return nil
+		case 1102:
+			// web wecat wanna login
 		case 0:
 			switch selector {
 			case 2:
 				msg, err := w.WxSync()
 				if err != nil {
-					log.Print(err)
+					log.Println(err)
 				}
 
 				if err := w.handle(msg); err != nil {
-					log.Print(err)
+					log.Println(err)
 				}
 			case 0:
 				time.Sleep(time.Second)
@@ -547,9 +584,15 @@ func (w *Wecat) Start() {
 	w.run("[*] init wecat ...", w.Init)
 	w.run("[*] open status notify ...", w.StatusNotify)
 	w.run("[*] get contact ...", w.GetContact)
-	for _, cc := range w.contacts {
-		fmt.Printf("%s,(%s),(%s)\n",cc.UserName, cc.NickName, cc.DisplayName)
-	}
+	/*
+		for _, cc := range w.contacts {
+			if cc.MemberCount == 0 {
+				fmt.Printf("%s,(%s),(%s)\n", cc.UserName, cc.NickName, cc.RemarkName)
+			} else {
+				fmt.Printf("%s,@(%s),(%s)\n", cc.UserName, cc.NickName, cc.RemarkName)
+			}
+		}
+	*/
 	w.run("[*] dail sync message ...", w.Dail)
 }
 
