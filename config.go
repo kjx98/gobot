@@ -19,8 +19,9 @@ type Rebot struct {
 }
 
 type Tuling struct {
-	URL  string           `yaml:"url"`
-	Keys map[string]Rebot `yaml:"keys"`
+	URL       string           `yaml:"url"`
+	GroupOnly bool             `yaml:"groupOnly,omitempty"`
+	Keys      map[string]Rebot `yaml:"keys"`
 }
 
 func Load() Config {

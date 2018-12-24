@@ -7,7 +7,12 @@ import (
 	"io/ioutil"
 	"net/http"
 	"testing"
+	"time"
 )
+
+func timeFunc(args []string) string {
+	return time.Now().Format("2006-01-02 15:03:04")
+}
 
 func TestGetUUID(t *testing.T) {
 	cfg := Load()
@@ -16,6 +21,7 @@ func TestGetUUID(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
+	wx.RegisterHandle("time", timeFunc)
 
 	wx.Start()
 }

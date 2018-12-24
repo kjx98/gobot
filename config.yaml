@@ -1,5 +1,6 @@
 tuling:
   url: http://www.tuling123.com/openapi/api
+  groupOnly: true
   keys: {
     "test": {name: "gobot", key: "b689c0a4af2f424f8ab3ad6bc323d36e"},
   }

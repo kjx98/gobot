@@ -492,17 +492,18 @@ func (w *Wecat) handle(msg *Message) error {
 			} else {
 				if m.FromUserName != w.user.UserName {
 					fmt.Println("[*] ", w.getNickName(m.FromUserName), ": ", m.Content)
-					cmds := strings.Split(m.Content, " ,")
+					cmds := strings.Split(m.Content, ",")
 					if len(cmds) == 0 {
 						return nil
 					}
-					if cmdFunc, ok := handlers[cmds[0]]; ok {
+					if cmdFunc, ok := handlers[strings.Trim(cmds[0], " \t")]; ok {
+						println("cmd", cmds[0], "argc:", len(cmds[1:]))
 						reply := cmdFunc(cmds[1:])
 						if err := w.SendMessage(reply, m.FromUserName); err != nil {
 							return err
 						}
 						fmt.Println("[#] ", w.user.NickName, ": ", reply)
-					} else {
+					} else if !w.cfg.Tuling.GroupOnly {
 						if w.auto {
 							reply, err := w.getReply(m.Content, m.FromUserName)
 							if err != nil {
