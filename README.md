@@ -2,6 +2,7 @@
 golang 实现微信聊天机器人
 
 forked from github.com/qianlnk/gobot, remove depends on nonexist github.com/qianlnk/to
+add SendGroup, Handle for cmd process
 
 ## 使用
 
@@ -54,9 +55,8 @@ GET
 - 实现
 参考GenQrcode方法
 
-- 将二维码输出到终端
- [https://github.com/qianlnk/qrcode](https://github.com/qianlnk/qrcode)
-
+- 将二维码输出到SDL2 窗口
+ 
 ### 登录
 
 - 接口地址
@@ -199,6 +199,7 @@ retcode:
     0 正常
     1100 手机上退出网页版微信
     1101在其他地方登录网页版微信
+	1102 在其他地方尝试登录网页版微信
 selector:
     0 正常
     2 新的消息
@@ -261,7 +262,7 @@ POST
 
 ## 图灵API
 
-获取自动回复内容
+获取自动回复内容, V1 API, V2 API需要修改代码
 
 - 接口地址
 `http://www.tuling123.com/openapi/api`

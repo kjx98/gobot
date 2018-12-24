@@ -229,25 +229,3 @@ type Message struct {
 	SKey                   string        `json:"SKey"`
 	SyncCheckKey           SyncKey       `json:"SyncCheckKey"`
 }
-
-//tuling
-type News struct {
-	Article   string `json:"article"`
-	Source    string `json:"source"`
-	Icon      string `json:"icon"`
-	DetailURL string `json:"detailurl"`
-}
-
-type Menu struct {
-	Name      string `json:"name"`
-	Icon      string `json:"icon"`
-	Info      string `json:"info"`
-	DetailURL string `json:"detailurl"`
-}
-
-type Reply struct {
-	Code int         `json:"code"`
-	Text string      `json:"text"` //100000
-	URL  string      `json:"url"`  //200000
-	List interface{} `json:"list"` //302000 []News 308000 []Menu
-}

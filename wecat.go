@@ -50,7 +50,11 @@ var (
 	errLoginTimeout = errors.New("Login time out")
 	errGetCodeFail  = errors.New("get code fail")
 	errInit         = errors.New("init fail ret <> 0")
+	errNoGroup      = errors.New("没有找到群")
+	errHandleExist  = errors.New("命令处理器已经存在")
 )
+
+type HandlerFunc func(args []string) string
 
 var (
 	Hosts = []string{
@@ -58,13 +62,16 @@ var (
 		"webpush.weixin.qq.com",
 		"webpush.wx2.qq.com",
 		"webpush2.weixin.qq.com",
-		"webpush2.wx.qq.com",
+		//"webpush2.wx.qq.com",
 		"webpush.wechat.com",
 		"webpush1.wechat.com",
 		"webpush2.wechat.com",
-		"webpush1.wechatapp.com",
+		//"webpush1.wechatapp.com",
 	}
 )
+
+var handlers = map[string]HandlerFunc{}
+var weGroups = map[string]string{}
 
 func NewWecat(cfg Config) (*Wecat, error) {
 	jar, err := cookiejar.New(nil)
@@ -170,10 +177,10 @@ func (w *Wecat) Relogin(reLogin bool) error {
 			code := codes[1]
 			switch code {
 			case "201":
-				log.Println("scan code success")
+				log.Print("scan code success")
 				tip = 0
 			case "200":
-				log.Println("login success, wait to redirect")
+				log.Print("login success, wait to redirect")
 				re := regexp.MustCompile(`window.redirect_uri="(\S+?)";`)
 				redirctURIs := re.FindStringSubmatch(string(data))
 
@@ -345,6 +352,11 @@ func (w *Wecat) GetContact() error {
 			contact.NickName = contact.UserName
 		}
 		w.contacts[contact.UserName] = contact
+		if contact.UserName[:2] == "@@" {
+			if _, ok := weGroups[contact.NickName]; !ok {
+				weGroups[contact.NickName] = contact.UserName
+			}
+		}
 	}
 
 	return nil
@@ -382,52 +394,14 @@ func (w *Wecat) run(desc string, f func() error) {
 		os.Exit(1)
 	}
 
-	log.Println("SUCCESS, use time", time.Now().Sub(start).Nanoseconds())
+	log.Print("SUCCESS, use time", time.Now().Sub(start).Nanoseconds())
 }
 
-func (w *Wecat) getReply(msg string, uid string) (string, error) {
-	params := make(map[string]interface{})
-	params["userid"] = uid
-	params["key"] = w.cfg.Tuling.Keys["test"].Key
-	params["info"] = msg
-
-	body, err := w.post(w.cfg.Tuling.URL, params)
-
-	if err != nil {
-		return "", err
+func (w *Wecat) SendGroupMessage(message string, to string) error {
+	if toGrp, ok := weGroups[to]; ok {
+		return w.SendMessage(message, toGrp)
 	}
-
-	var reply Reply
-
-	if err := json.Unmarshal(body, &reply); err != nil {
-		return "", err
-	}
-
-	switch reply.Code {
-	case 100000:
-		return reply.Text, nil
-	case 200000:
-		return reply.Text + " " + reply.URL, nil
-	case 302000:
-		var res string
-		news := reply.List.([]News)
-		for _, n := range news {
-			res += fmt.Sprintf("%s\n%s\n", n.Article, n.DetailURL)
-		}
-
-		return res, nil
-	case 308000:
-		var res string
-		menu := reply.List.([]Menu)
-		for _, m := range menu {
-			res += fmt.Sprintf("%s\n%s\n%s\n", m.Name, m.Info, m.DetailURL)
-		}
-		return res, nil
-	default:
-		return reply.Text, nil
-	}
-
-	// return "哦", nil
+	return errNoGroup
 }
 
 func (w *Wecat) SendMessage(message string, to string) error {
@@ -451,6 +425,14 @@ func (w *Wecat) SendMessage(message string, to string) error {
 	return nil
 }
 
+func (w *Wecat) RegisterHandle(cmd string, cmdFunc HandlerFunc) error {
+	if _, ok := handlers[cmd]; ok {
+		return errHandleExist
+	}
+	handlers[cmd] = cmdFunc
+	return nil
+}
+
 func (w *Wecat) getNickName(userName string) string {
 	if v, ok := w.contacts[userName]; ok {
 		return v.NickName
@@ -466,6 +448,11 @@ func (w *Wecat) handle(msg *Message) error {
 				contact.NickName = contact.UserName
 			}
 			w.contacts[contact.UserName] = contact
+			if contact.UserName[:2] == "@@" {
+				if _, ok := weGroups[contact.NickName]; !ok {
+					weGroups[contact.NickName] = contact.UserName
+				}
+			}
 			println("Mod contact", contact.UserName, contact.NickName)
 		}
 	}
@@ -498,27 +485,40 @@ func (w *Wecat) handle(msg *Message) error {
 						fmt.Println("[#] ", w.user.NickName, ": ", reply)
 					}
 				} else {
-					log.Println("From group: ", w.getNickName(m.FromUserName))
+					log.Print("From group: ", w.getNickName(m.FromUserName))
 					contents := strings.Split(m.Content, ":<br/>")
 					fmt.Println("[*] ", w.getNickName(contents[0]), ": ", contents[1])
 				}
 			} else {
 				if m.FromUserName != w.user.UserName {
 					fmt.Println("[*] ", w.getNickName(m.FromUserName), ": ", m.Content)
-					if w.auto {
-						reply, err := w.getReply(m.Content, m.FromUserName)
-						if err != nil {
-							return err
-						}
-
-						if w.showRebot {
-							reply = w.cfg.Tuling.Keys[w.user.NickName].Name + ": " + reply
-						}
+					cmds := strings.Split(m.Content, " ,")
+					if len(cmds) == 0 {
+						return nil
+					}
+					if cmdFunc, ok := handlers[cmds[0]]; ok {
+						reply := cmdFunc(cmds[1:])
 						if err := w.SendMessage(reply, m.FromUserName); err != nil {
 							return err
 						}
 						fmt.Println("[#] ", w.user.NickName, ": ", reply)
+					} else {
+						if w.auto {
+							reply, err := w.getReply(m.Content, m.FromUserName)
+							if err != nil {
+								return err
+							}
+
+							if w.showRebot {
+								reply = w.cfg.Tuling.Keys[w.user.NickName].Name + ": " + reply
+							}
+							if err := w.SendMessage(reply, m.FromUserName); err != nil {
+								return err
+							}
+							fmt.Println("[#] ", w.user.NickName, ": ", reply)
+						}
 					}
+
 				} else {
 					switch m.Content {
 					case "退下":
@@ -535,7 +535,7 @@ func (w *Wecat) handle(msg *Message) error {
 				}
 			}
 		case 51:
-			log.Println("sync ok")
+			log.Print("sync ok")
 		}
 	}
 
@@ -547,23 +547,24 @@ func (w *Wecat) Dail() error {
 		retcode, selector := w.SyncCheck()
 		switch retcode {
 		case 1100:
-			log.Println("logout with phone, bye")
+			log.Print("logout with phone, bye")
 			return nil
 		case 1101:
-			log.Println("login web wecat at other palce, bye")
+			log.Print("login web wecat at other palce, bye")
 			return nil
 		case 1102:
 			// web wecat wanna login
+			log.Print("web wecat try to login")
 		case 0:
 			switch selector {
 			case 2:
 				msg, err := w.WxSync()
 				if err != nil {
-					log.Println(err)
+					log.Print(err)
 				}
 
 				if err := w.handle(msg); err != nil {
-					log.Println(err)
+					log.Print(err)
 				}
 			case 0:
 				time.Sleep(time.Second)
