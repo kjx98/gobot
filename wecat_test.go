@@ -14,8 +14,8 @@ func timeFunc(args []string) string {
 	return time.Now().Format("2006-01-02 15:03:04")
 }
 
-func TestGetUUID(t *testing.T) {
-	cfg := Load()
+func TestWxStart(t *testing.T) {
+	cfg := NewConfig("") // Load()
 	fmt.Println(cfg)
 	wx, err := NewWecat(cfg)
 	if err != nil {
@@ -24,12 +24,15 @@ func TestGetUUID(t *testing.T) {
 	wx.RegisterHandle("time", timeFunc)
 
 	wx.Start()
+	for gn, nn := range weGroups {
+		t.Log("群", nn, "-->", gn)
+	}
 }
 
 func TestTuling(t *testing.T) {
 	params := make(map[string]interface{})
 	params["userid"] = "123123123"
-	params["key"] = "b689c0a4af2f424f8ab3ad6bc323d36e"
+	params["key"] = "808811ad0fd34abaa6fe800b44a9556a"
 	params["info"] = "你好"
 
 	data, err := json.Marshal(params)

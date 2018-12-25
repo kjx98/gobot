@@ -6,6 +6,7 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
+	"image/jpeg"
 	"io/ioutil"
 	"math/rand"
 	"net/http"
@@ -16,6 +17,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"log"
 
@@ -52,6 +54,9 @@ var (
 	errInit         = errors.New("init fail ret <> 0")
 	errNoGroup      = errors.New("没有找到群")
 	errHandleExist  = errors.New("命令处理器已经存在")
+	errUUID         = errors.New("haven't get uuid")
+	errUIN          = errors.New("haven't get uin")
+	errPushLogin    = errors.New("PushLogin error")
 )
 
 type HandlerFunc func(args []string) string
@@ -103,7 +108,11 @@ func (w *Wecat) GetUUID() error {
 		return nil
 	}
 
+	// new AppIP useless
+	/* 网页版微信有两个AppID，早期的是wx782c26e4c19acffb，在微信客户端上显示为应用名称为Web微信；现在用的是wxeb7ec651dd0aefa9，显示名称为微信网页版
+	 */
 	uri := LoginBaseURL + "/jslogin?appid=wx782c26e4c19acffb&fun=new&lang=zh_CN&_=" + w.timestamp()
+	//uri := LoginBaseURL + "/jslogin?appid=wxeb7ec651dd0aefa9&fun=new&lang=zh_CN&_=" + w.timestamp()
 	//result: window.QRLogin.code = 200; window.QRLogin.uuid = "xxx"; //wx782c26e4c19acffb  wxeb7ec651dd0aefa9
 	data, err := w.get(uri)
 	if err != nil {
@@ -129,6 +138,34 @@ func (w *Wecat) GetUUID() error {
 	return fmt.Errorf(string(data))
 }
 
+func (w *Wecat) PushLogin() error {
+	if w.loginRes.Wxuin == "" {
+		log.Print("Never logined", errUIN)
+		return errUIN
+	}
+
+	uri := "https://wx.qq.com/cgi-bin/mmwebwx-bin/webwxpushloginurl?uin=" +
+		w.loginRes.Wxuin
+
+	if resp, err := w.get(uri); err != nil {
+		return err
+	} else {
+		var res PushLoginResult
+		if err := json.Unmarshal(resp, &res); err != nil {
+			return err
+		}
+		if to.Int(res.RetCode) != 0 {
+			log.Print("PushLogin", res.Msg)
+			return errPushLogin
+		}
+		w.uuid = res.Uuid
+		log.Print("PushLogin ok, uuid:", res.Uuid, ",uin:", w.loginRes.Wxuin)
+	}
+
+	// resp:   { 'msg':'all ok', 'uuid':'xxx', 'ret':'0' }
+	return w.checkLogin(true)
+}
+
 func (w *Wecat) GenQrcode() error {
 	if w.uuid == "" {
 		err := errors.New("haven't get uuid")
@@ -137,14 +174,19 @@ func (w *Wecat) GenQrcode() error {
 	}
 
 	uri := LoginBaseURL + "/qrcode/" + w.uuid + "?t=webwx&_=" + w.timestamp()
+	//uri := LoginBaseURL + "/l/" + w.uuid
 
 	resp, err := w.get(uri)
 
-	err = dispJPEG([]byte(resp))
-	//img, err := jpeg.Decode(bytes.NewReader([]byte(resp)))
-
+	//err = dispJPEG([]byte(resp))
+	img, err := jpeg.Decode(bytes.NewReader([]byte(resp)))
 	if err != nil {
-		fmt.Println("dispJPEG:", err)
+		log.Print("Decode Qrcode", err)
+		return err
+	}
+
+	if err := dispImage(img); err != nil {
+		log.Print("dispImage:", err)
 		return err
 	}
 
@@ -152,20 +194,23 @@ func (w *Wecat) GenQrcode() error {
 }
 
 func (w *Wecat) Login() error {
-	defer shutJpegWin()
-	return w.Relogin(false)
+	return w.checkLogin(false)
 }
 
-func (w *Wecat) Relogin(reLogin bool) error {
+func (w *Wecat) checkLogin(scanned bool) error {
+	if !scanned {
+		defer shutJpegWin()
+	}
 	tip := 1
-	if reLogin {
+	if scanned {
 		tip = 0
 	}
 	for {
-		if !reLogin {
+		if !scanned {
 			jpegLoop()
 		}
-		uri := fmt.Sprintf("%s/cgi-bin/mmwebwx-bin/login?tip=%d&uuid=%s&_=%s", LoginBaseURL, tip, w.uuid, w.timestamp())
+		uri := fmt.Sprintf("%s/cgi-bin/mmwebwx-bin/login?tip=%d&uuid=%s&_=%s",
+			LoginBaseURL, tip, w.uuid, w.timestamp())
 		data, err := w.get(uri)
 		if err != nil {
 			return err
@@ -441,6 +486,16 @@ func (w *Wecat) getNickName(userName string) string {
 	return userName
 }
 
+func unicodeTrim(ss string) string {
+	ru := []rune(ss)
+	for i := 0; i < len(ru); i++ {
+		if !unicode.IsSpace(ru[i]) {
+			return string(ru[i:])
+		}
+	}
+	return ""
+}
+
 func (w *Wecat) handle(msg *Message) error {
 	for _, contact := range msg.ModContactList {
 		if _, ok := w.contacts[contact.UserName]; !ok {
@@ -470,14 +525,26 @@ func (w *Wecat) handle(msg *Message) error {
 					content = strings.Replace(content, "@"+w.user.RemarkName, "", -1)
 					//println("From group: ", w.getNickName(m.FromUserName))
 					fmt.Println("[*] ", w.getNickName(m.FromUserName), ": ", content)
-					if w.auto {
-						reply, err := w.getReply(m.Content, m.FromUserName)
+					cmds := strings.Split(unicodeTrim(content), ",")
+					if len(cmds) == 0 {
+						return nil
+					}
+					//log.Print("cmds", cmds)
+					if cmdFunc, ok := handlers[strings.Trim(cmds[0], " \t")]; ok {
+						//println("cmd", cmds[0], "argc:", len(cmds[1:]))
+						reply := cmdFunc(cmds[1:])
+						if err := w.SendMessage(reply, m.FromUserName); err != nil {
+							return err
+						}
+						fmt.Println("[#] ", w.user.NickName, ": ", reply)
+					} else if w.auto {
+						reply, err := w.getTulingReply(m.Content, m.FromUserName)
 						if err != nil {
 							return err
 						}
 
 						if w.showRebot {
-							reply = w.cfg.Tuling.Keys[w.user.NickName].Name + ": " + reply
+							reply = "Gamma: " + reply
 						}
 						if err := w.SendMessage(reply, m.FromUserName); err != nil {
 							return err
@@ -492,12 +559,12 @@ func (w *Wecat) handle(msg *Message) error {
 			} else {
 				if m.FromUserName != w.user.UserName {
 					fmt.Println("[*] ", w.getNickName(m.FromUserName), ": ", m.Content)
-					cmds := strings.Split(m.Content, ",")
+					cmds := strings.Split(unicodeTrim(m.Content), ",")
 					if len(cmds) == 0 {
 						return nil
 					}
 					if cmdFunc, ok := handlers[strings.Trim(cmds[0], " \t")]; ok {
-						println("cmd", cmds[0], "argc:", len(cmds[1:]))
+						//println("cmd", cmds[0], "argc:", len(cmds[1:]))
 						reply := cmdFunc(cmds[1:])
 						if err := w.SendMessage(reply, m.FromUserName); err != nil {
 							return err
@@ -505,13 +572,13 @@ func (w *Wecat) handle(msg *Message) error {
 						fmt.Println("[#] ", w.user.NickName, ": ", reply)
 					} else if !w.cfg.Tuling.GroupOnly {
 						if w.auto {
-							reply, err := w.getReply(m.Content, m.FromUserName)
+							reply, err := w.getTulingReply(m.Content, m.FromUserName)
 							if err != nil {
 								return err
 							}
 
 							if w.showRebot {
-								reply = w.cfg.Tuling.Keys[w.user.NickName].Name + ": " + reply
+								reply = "Gamma: " + reply
 							}
 							if err := w.SendMessage(reply, m.FromUserName); err != nil {
 								return err
@@ -569,6 +636,7 @@ func (w *Wecat) Dail() error {
 				}
 			case 0:
 				time.Sleep(time.Second)
+			case 7: // Enter/Leave chat Room
 			case 6, 4:
 				w.WxSync()
 				time.Sleep(time.Second)
@@ -588,14 +656,18 @@ func (w *Wecat) Start() {
 	w.run("[*] get contact ...", w.GetContact)
 	/*
 		for _, cc := range w.contacts {
-			if cc.MemberCount == 0 {
+			if cc.VerifyFlag&8 == 0 {
 				fmt.Printf("%s,(%s),(%s)\n", cc.UserName, cc.NickName, cc.RemarkName)
 			} else {
-				fmt.Printf("%s,@(%s),(%s)\n", cc.UserName, cc.NickName, cc.RemarkName)
+				fmt.Printf("pub(%s),(%s),(%s)\n", cc.UserName, cc.NickName, cc.RemarkName)
 			}
 		}
 	*/
 	w.run("[*] dail sync message ...", w.Dail)
+	/*
+		w.run("[*] PushLogin ...", w.PushLogin)
+		w.run("[*] dail sync after PushLogin message ...", w.Dail)
+	*/
 }
 
 func (w *Wecat) timestamp() string {

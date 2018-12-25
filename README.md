@@ -1,7 +1,7 @@
 # gobot
 golang 实现微信聊天机器人
 
-forked from github.com/qianlnk/gobot, remove depends on nonexist github.com/qianlnk/to
+forked from github.com/qianlnk/gobot, remove depends on nonexist github.com/qianlnk/to, 调整tuling接口，便于增加V2接口，增加PushLogin
 add SendGroup, Handle for cmd process
 
 ## 使用

@@ -27,10 +27,12 @@ type Reply struct {
 	List interface{} `json:"list"` //302000 []News 308000 []Menu
 }
 
-func (w *Wecat) getReply(msg string, uid string) (string, error) {
+var tulingURL = "http://www.tuling123.com/openapi/api"
+
+func (w *Wecat) getTulingReply(msg string, uid string) (string, error) {
 	params := make(map[string]interface{})
 	params["userid"] = uid
-	params["key"] = w.cfg.Tuling.Keys["test"].Key
+	params["key"] = w.cfg.Tuling.KeyAPI
 	params["info"] = msg
 
 	body, err := w.post(w.cfg.Tuling.URL, params)

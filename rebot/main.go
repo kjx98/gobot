@@ -5,7 +5,7 @@ import (
 )
 
 func main() {
-	cfg := gobot.Load()
+	cfg := gobot.NewConfig("")
 	rebot, err := gobot.NewWecat(cfg)
 	if err != nil {
 		panic(err)

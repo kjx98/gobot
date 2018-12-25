@@ -1,9 +1,7 @@
 package gobot
 
-import (
-	yaml "gopkg.in/yaml.v2"
-	"io/ioutil"
-)
+//"io/ioutil"
+//yaml "gopkg.in/yaml.v2"
 
 const (
 	ConfigFile = "config.yaml"
@@ -13,17 +11,13 @@ type Config struct {
 	Tuling Tuling `yaml:"tuling"`
 }
 
-type Rebot struct {
-	Name string `yaml:"Name"`
-	Key  string `yaml:"key"`
-}
-
 type Tuling struct {
-	URL       string           `yaml:"url"`
-	GroupOnly bool             `yaml:"groupOnly,omitempty"`
-	Keys      map[string]Rebot `yaml:"keys"`
+	URL       string `yaml:"url"`
+	GroupOnly bool   `yaml:"groupOnly,omitempty"`
+	KeyAPI    string `yaml:"APIkey"`
 }
 
+/*
 func Load() Config {
 	var cfg Config
 	if bb, err := ioutil.ReadFile(ConfigFile); err != nil {
@@ -34,5 +28,20 @@ func Load() Config {
 		}
 	}
 
+	return cfg
+}
+
+*/
+
+func NewConfig(key string) Config {
+	url := tulingURL
+
+	if key == "" {
+		key = "808811ad0fd34abaa6fe800b44a9556a"
+	}
+	var cfg = Config{Tuling{URL: url,
+		GroupOnly: true,
+		KeyAPI:    key,
+	}}
 	return cfg
 }

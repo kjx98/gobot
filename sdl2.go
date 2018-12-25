@@ -1,7 +1,8 @@
 package gobot
 
 import (
-	"github.com/veandco/go-sdl2/img"
+	"image"
+
 	"github.com/veandco/go-sdl2/sdl"
 )
 
@@ -14,15 +15,21 @@ func SetJpegWindow(w *sdl.Window) {
 	window = w
 }
 
-func initJpegWin() (err error) {
+func initJpegWin(w, h int) (err error) {
 	if window != nil {
 		return
+	}
+	if w == 0 {
+		w = 320
+	}
+	if h == 0 {
+		h = 320
 	}
 	if err = sdl.Init(sdl.INIT_EVERYTHING); err != nil {
 		return
 	}
-	window, err = sdl.CreateWindow("test", sdl.WINDOWPOS_UNDEFINED,
-		sdl.WINDOWPOS_UNDEFINED, 320, 320, sdl.WINDOW_SHOWN)
+	window, err = sdl.CreateWindow("请扫描二维码登录", sdl.WINDOWPOS_UNDEFINED,
+		sdl.WINDOWPOS_UNDEFINED, int32(w), int32(h), sdl.WINDOW_SHOWN)
 	if err != nil {
 		return
 	}
@@ -47,10 +54,12 @@ func shutJpegWin() {
 	window.Destroy()
 }
 
-func dispJPEG(picImg []byte) (err error) {
+func dispImage(jpImg image.Image) error {
 	if window == nil {
-		if err = initJpegWin(); err != nil {
-			return
+		w := jpImg.Bounds().Max.X - jpImg.Bounds().Min.X
+		h := jpImg.Bounds().Max.Y - jpImg.Bounds().Min.Y
+		if err := initJpegWin(w, h); err != nil {
+			return err
 		}
 	}
 	surface, err := window.GetSurface()
@@ -58,17 +67,12 @@ func dispJPEG(picImg []byte) (err error) {
 		return err
 	}
 
-	rwops, err := sdl.RWFromMem(picImg)
-	if err != nil {
-		return err
+	for i := jpImg.Bounds().Min.X; i < jpImg.Bounds().Max.X; i++ {
+		for j := jpImg.Bounds().Min.Y; j < jpImg.Bounds().Max.Y; j++ {
+			surface.Set(i, j, jpImg.At(i, j))
+		}
 	}
-	png, err := img.LoadRW(rwops, false)
-	if err != nil {
-		return err
-	}
-	//println("w/h:", png.W, png.H)
-	//png.BlitScaled(nil, surface, nil)
-	png.Blit(nil, surface, nil)
+
 	window.UpdateSurface()
 
 	return nil

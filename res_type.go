@@ -7,6 +7,12 @@ type LoginResult struct {
 	PassTicket string `xml:"pass_ticket"`
 }
 
+type PushLoginResult struct {
+	RetCode string `json:"ret"`
+	Msg     string `json:"msg,omitempty"`
+	Uuid    string `json:"uuid,omitempty"`
+}
+
 type BaseResponse struct {
 	Ret    int    `json:"Ret"`
 	ErrMsg string `json:"ErrMsg"`
