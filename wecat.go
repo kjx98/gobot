@@ -38,6 +38,7 @@ type Wecat struct {
 	client      *http.Client
 	auto        bool
 	showRebot   bool
+	bConnected  bool
 	contacts    map[string]Contact
 }
 
@@ -239,6 +240,7 @@ func (w *Wecat) checkLogin(scanned bool) error {
 						log.Print(err)
 						return err
 					}
+					w.bConnected = true
 					return nil
 				}
 
@@ -303,6 +305,10 @@ func (w *Wecat) Init() error {
 	if res.BaseResponse.Ret != 0 {
 		log.Print(errInit, "errMsg:", res.BaseResponse.ErrMsg)
 	} else {
+		// update Contacts
+		for _, contact := range res.ContactList {
+			w.updateContacts(contact)
+		}
 		// 订阅号
 		/*
 			for _, cc := range res.MPSubscribeMsgList {
@@ -393,18 +399,26 @@ func (w *Wecat) GetContact() error {
 	}
 
 	for _, contact := range contacts.MemberList {
-		if contact.NickName == "" {
-			contact.NickName = contact.UserName
-		}
-		w.contacts[contact.UserName] = contact
-		if contact.UserName[:2] == "@@" {
-			if _, ok := weGroups[contact.NickName]; !ok {
-				weGroups[contact.NickName] = contact.UserName
-			}
-		}
+		w.updateContacts(contact)
 	}
 
 	return nil
+}
+
+func (w *Wecat) updateContacts(contact Contact) {
+	if contact.NickName == "" {
+		if contact.RemarkName != "" {
+			contact.NickName = contact.RemarkName
+		} else {
+			contact.NickName = contact.UserName
+		}
+	}
+	w.contacts[contact.UserName] = contact
+	if contact.UserName[:2] == "@@" {
+		//if _, ok := weGroups[contact.NickName]; !ok {
+		weGroups[contact.NickName] = contact.UserName
+		//}
+	}
 }
 
 func (w *Wecat) WxSync() (*Message, error) {
@@ -439,11 +453,13 @@ func (w *Wecat) run(desc string, f func() error) {
 		os.Exit(1)
 	}
 
-	log.Print("SUCCESS, use time", time.Now().Sub(start).Nanoseconds())
+	log.Printf("SUCCESS, use time: %.3f seconds",
+		time.Now().Sub(start).Seconds())
 }
 
 func (w *Wecat) SendGroupMessage(message string, to string) error {
 	if toGrp, ok := weGroups[to]; ok {
+		log.Print("SendGroupMsg:", toGrp, "--->", message)
 		return w.SendMessage(message, toGrp)
 	}
 	return errNoGroup
@@ -499,15 +515,7 @@ func unicodeTrim(ss string) string {
 func (w *Wecat) handle(msg *Message) error {
 	for _, contact := range msg.ModContactList {
 		if _, ok := w.contacts[contact.UserName]; !ok {
-			if contact.NickName == "" {
-				contact.NickName = contact.UserName
-			}
-			w.contacts[contact.UserName] = contact
-			if contact.UserName[:2] == "@@" {
-				if _, ok := weGroups[contact.NickName]; !ok {
-					weGroups[contact.NickName] = contact.UserName
-				}
-			}
+			w.updateContacts(contact)
 			println("Mod contact", contact.UserName, contact.NickName)
 		}
 	}
@@ -549,6 +557,8 @@ func (w *Wecat) handle(msg *Message) error {
 						if err := w.SendMessage(reply, m.FromUserName); err != nil {
 							return err
 						}
+						// copy to test群
+						//w.SendGroupMessage(reply, "test群")
 						fmt.Println("[#] ", w.user.NickName, ": ", reply)
 					}
 				} else {
@@ -603,7 +613,15 @@ func (w *Wecat) handle(msg *Message) error {
 				}
 			}
 		case 51:
-			log.Print("sync ok")
+			if m.Content == "" {
+				log.Print("sync ok")
+			} else {
+				log.Print("sync ok, 最近联系的联系人:", m.StatusNotifyUserName)
+				log.Print("content-->", m.Content)
+			}
+		case 9999: // SYSNOTICE
+		case 10000: //system message
+		case 10002: // revoke message
 		}
 	}
 
@@ -616,9 +634,11 @@ func (w *Wecat) Dail() error {
 		switch retcode {
 		case 1100:
 			log.Print("logout with phone, bye")
+			w.bConnected = false
 			return nil
 		case 1101:
 			log.Print("login web wecat at other palce, bye")
+			w.bConnected = false
 			return nil
 		case 1102:
 			// web wecat wanna login
@@ -638,7 +658,9 @@ func (w *Wecat) Dail() error {
 				time.Sleep(time.Second)
 			case 7: // Enter/Leave chat Room
 			case 6, 4:
-				w.WxSync()
+				if msg, err := w.WxSync(); err == nil {
+					w.handle(msg)
+				}
 				time.Sleep(time.Second)
 			}
 		default:
@@ -668,6 +690,39 @@ func (w *Wecat) Start() {
 		w.run("[*] PushLogin ...", w.PushLogin)
 		w.run("[*] dail sync after PushLogin message ...", w.Dail)
 	*/
+}
+
+func (w *Wecat) Connect() error {
+	if w.loginRes.Wxuin != "" {
+		if err := w.PushLogin(); err != nil {
+			return err
+		}
+	} else {
+		if err := w.GetUUID(); err != nil {
+			return err
+		}
+		if err := w.GenQrcode(); err != nil {
+			return err
+		}
+		if err := w.Login(); err != nil {
+			return err
+		}
+	}
+
+	if err := w.Init(); err == nil {
+		log.Print("wxInit ok")
+	} else {
+		return err
+	}
+	if err := w.StatusNotify(); err != nil {
+		return err
+	}
+	w.GetContact()
+	return nil
+}
+
+func (w *Wecat) IsConnected() bool {
+	return w.bConnected
 }
 
 func (w *Wecat) timestamp() string {

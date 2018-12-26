@@ -14,19 +14,59 @@ func timeFunc(args []string) string {
 	return time.Now().Format("2006-01-02 15:03:04")
 }
 
+var cfg = NewConfig("")
+var wx *Wecat
+
 func TestWxStart(t *testing.T) {
-	cfg := NewConfig("") // Load()
 	fmt.Println(cfg)
-	wx, err := NewWecat(cfg)
-	if err != nil {
-		panic(err)
+	if wx == nil {
+		w, err := NewWecat(cfg)
+		if err != nil {
+			t.Error(err)
+		}
+		wx = w
 	}
+
 	wx.RegisterHandle("time", timeFunc)
+	wx.RegisterHandle("时间", timeFunc)
 
 	wx.Start()
 	for gn, nn := range weGroups {
 		t.Log("群", nn, "-->", gn)
 	}
+}
+
+func TestWxConnect(t *testing.T) {
+	if wx == nil {
+		w, err := NewWecat(cfg)
+		if err != nil {
+			t.Error(err)
+		}
+		wx = w
+	}
+
+	if err := wx.Connect(); err != nil {
+		t.Error(err)
+	}
+}
+
+func TestSendGroupMessage(t *testing.T) {
+	if wx == nil {
+		w, err := NewWecat(cfg)
+		if err != nil {
+			t.Error(err)
+		}
+		wx = w
+	}
+	if wx.IsConnected() {
+		if err := wx.SendGroupMessage("test only!!!", "test群"); err != nil {
+			t.Error(err)
+		}
+		//wx.Dail()
+	} else {
+		t.Log("Not login, no test SendGroupMessage")
+	}
+
 }
 
 func TestTuling(t *testing.T) {
