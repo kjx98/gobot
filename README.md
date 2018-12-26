@@ -202,7 +202,7 @@ retcode:
     0 正常
     1100 手机上退出网页版微信
     1101在其他地方登录网页版微信
-	1102 在其他地方尝试登录网页版微信
+    1102 在其他地方尝试登录网页版微信
 selector:
     0 正常
     2 新的消息
@@ -297,4 +297,4 @@ POST
 
 ## 效果图
 
-![run.jpg](https://github.com/kjx98/gobot/run.jpg)
+![run.jpg](https://github.com/kjx98/gobot/blob/master/run.jpg)
