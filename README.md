@@ -265,7 +265,7 @@ POST
 
 ## 图灵API
 
-获取自动回复内容, V1 API, V2 API需要修改代码
+获取自动回复内容, 采用V1 API, V2 API需要修改代码
 
 - 接口地址
 `http://www.tuling123.com/openapi/api`
@@ -297,4 +297,4 @@ POST
 
 ## 效果图
 
-![run.png](run.png)
+![run.jpg](https://github.com/kjx98/gobot/run.jpg)
