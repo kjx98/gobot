@@ -1,0 +1,16 @@
+dist: xenial
+language: go
+
+go:
+  - 1.9
+
+before_install:
+  - sudo apt-get update -q
+  - sudo apt-get install libsdl2-dev
+
+install:
+  - go get github.com/kjx98/golib/to
+  - go get github.com/veandco/go-sdl2/sdl
+
+script:
+    - go build rebot/main.go
