@@ -3,7 +3,7 @@ package gobot
 import (
 	"image"
 
-	"github.com/veandco/go-sdl2/sdl"
+	"github.com/kjx98/go-sdl2/sdl"
 )
 
 var window *sdl.Window
