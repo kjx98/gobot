@@ -25,7 +25,7 @@ func initJpegWin(w, h int) (err error) {
 	if h == 0 {
 		h = 320
 	}
-	if err = sdl.Init(sdl.INIT_EVERYTHING); err != nil {
+	if err = sdl.Init(sdl.INIT_VIDEO); err != nil {
 		return
 	}
 	window, err = sdl.CreateWindow("请扫描二维码登录", sdl.WINDOWPOS_UNDEFINED,
@@ -37,6 +37,9 @@ func initJpegWin(w, h int) (err error) {
 }
 
 func jpegLoop() bool {
+	if window == nil {
+		return false
+	}
 	for event := sdl.PollEvent(); event != nil; event = sdl.PollEvent() {
 		switch event.(type) {
 		case *sdl.QuitEvent:
@@ -48,10 +51,14 @@ func jpegLoop() bool {
 }
 
 func shutJpegWin() {
+	if window == nil {
+		return
+	}
 	defer sdl.Quit()
 	// first remove all event
 	jpegLoop()
 	window.Destroy()
+	window = nil
 }
 
 func dispImage(jpImg image.Image) error {

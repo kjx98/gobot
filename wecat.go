@@ -224,6 +224,8 @@ func (w *Wecat) checkLogin(scanned bool) error {
 			switch code {
 			case "201":
 				log.Print("scan code success")
+				shutJpegWin()
+				scanned = true
 				tip = 0
 			case "200":
 				log.Print("login success, wait to redirect")
