@@ -27,10 +27,13 @@ bin/rebot: rebot/main.go
 	go build -o bin/rebot rebot/main.go
 	@strip $@ || echo "rebot OK"
 
-win64: bin/rebot.exe
+win64: bin/rebotWin64.zip
 
-bin/rebot.exe: bin rebot/main.go
+bin/rebot.exe: bin rebot/main.go sdl2.go wecat.go
 	@./build-win64.sh
+
+bin/rebotWin64.zip: bin/rebot.exe
+	(cd bin; zip rebotWin64 rebot.exe SDL2.dll)
 
 clean:
 
