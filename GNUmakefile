@@ -29,11 +29,15 @@ bin/rebot: rebot/main.go
 
 win64: bin/rebotWin64.zip
 
-bin/rebot.exe: bin rebot/main.go sdl2.go wecat.go
-	@./build-win64.sh
+bin/rebot.exe: rebot/main.go sdl2.go wecat.go
+	(. ./mingw64-env.sh; go build -o $@ rebot/main.go)
+	@strip $@ || echo "rebot.exe win64 OK"
 
-bin/rebotWin64.zip: bin/rebot.exe
-	(cd bin; zip rebotWin64 rebot.exe SDL2.dll)
+bin/rebotWin64.zip: bin/rebot.exe bin/SDL2.dll
+	@(cd bin; zip rebotWin64 rebot.exe SDL2.dll)
+
+bin/SDL2.dll:
+	@cp /usr/x86_64-w64-mingw32/sys-root/mingw/bin/SDL2.dll bin
 
 clean:
 
