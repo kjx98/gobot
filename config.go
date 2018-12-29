@@ -9,6 +9,7 @@ const (
 
 type Config struct {
 	Tuling Tuling `yaml:"tuling"`
+	Uin    string
 }
 
 type Tuling struct {
@@ -41,7 +42,8 @@ func NewConfig(key string) Config {
 	}
 	var cfg = Config{Tuling{URL: url,
 		GroupOnly: true,
-		KeyAPI:    key,
-	}}
+		KeyAPI:    key},
+		"",
+	}
 	return cfg
 }

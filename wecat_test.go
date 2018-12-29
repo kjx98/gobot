@@ -59,7 +59,7 @@ func TestSendGroupMessage(t *testing.T) {
 		wx = w
 	}
 	if wx.IsConnected() {
-		if err := wx.SendGroupMessage("test only!!!", "test群"); err != nil {
+		if err := wx.SendGroupMessage("test only!!!\n环行\n", "test群"); err != nil {
 			t.Error(err)
 		}
 		//wx.Dail()

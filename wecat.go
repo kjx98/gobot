@@ -45,7 +45,7 @@ type Wecat struct {
 const (
 	LoginBaseURL = "https://login.weixin.qq.com"
 	WxReferer    = "https://wx.qq.com/"
-	WxUserAgent  = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/47.0.2526.111 Safari/537.36"
+	WxUserAgent  = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2840.71 Safari/537.36"
 )
 
 var (
@@ -141,8 +141,11 @@ func (w *Wecat) GetUUID() error {
 
 func (w *Wecat) PushLogin() error {
 	if w.loginRes.Wxuin == "" {
-		log.Print("Never logined", errUIN)
-		return errUIN
+		if w.cfg.Uin == "" {
+			log.Print("Never logined", errUIN)
+			return errUIN
+		}
+		w.loginRes.Wxuin = w.cfg.Uin
 	}
 
 	uri := "https://wx.qq.com/cgi-bin/mmwebwx-bin/webwxpushloginurl?uin=" +
@@ -468,7 +471,8 @@ func (w *Wecat) SendGroupMessage(message string, to string) error {
 }
 
 func (w *Wecat) SendMessage(message string, to string) error {
-	uri := fmt.Sprintf("%s/webwxsendmsg?pass_ticket=%s", w.baseURI, w.loginRes.PassTicket)
+	uri := fmt.Sprintf("%s/webwxsendmsg?pass_ticket=%s", w.baseURI,
+		w.loginRes.PassTicket)
 	clientMsgID := w.timestamp() + "0" + strconv.Itoa(rand.Int())[3:6]
 	params := make(map[string]interface{})
 	params["BaseRequest"] = w.baseRequest
@@ -479,6 +483,8 @@ func (w *Wecat) SendMessage(message string, to string) error {
 	msg["ToUserName"] = to
 	msg["LocalID"] = clientMsgID
 	msg["ClientMsgId"] = clientMsgID
+	msg["Status"] = 3
+	msg["ImgStatus"] = 1
 	params["Msg"] = msg
 	_, err := w.post(uri, params)
 	if err != nil {
@@ -543,10 +549,13 @@ func (w *Wecat) handle(msg *Message) error {
 					if cmdFunc, ok := handlers[strings.Trim(cmds[0], " \t")]; ok {
 						//println("cmd", cmds[0], "argc:", len(cmds[1:]))
 						reply := cmdFunc(cmds[1:])
-						if err := w.SendMessage(reply, m.FromUserName); err != nil {
-							return err
+						if reply != "" {
+							if err := w.SendMessage(reply, m.FromUserName); err != nil {
+								return err
+							}
+							//fmt.Printf("%#v", m)
+							fmt.Println("[#] ", w.user.NickName, ": ", reply)
 						}
-						fmt.Println("[#] ", w.user.NickName, ": ", reply)
 					} else if w.auto {
 						reply, err := w.getTulingReply(m.Content, m.FromUserName)
 						if err != nil {
@@ -578,10 +587,12 @@ func (w *Wecat) handle(msg *Message) error {
 					if cmdFunc, ok := handlers[strings.Trim(cmds[0], " \t")]; ok {
 						//println("cmd", cmds[0], "argc:", len(cmds[1:]))
 						reply := cmdFunc(cmds[1:])
-						if err := w.SendMessage(reply, m.FromUserName); err != nil {
-							return err
+						if reply != "" {
+							if err := w.SendMessage(reply, m.FromUserName); err != nil {
+								return err
+							}
+							fmt.Println("[#] ", w.user.NickName, ": ", reply)
 						}
-						fmt.Println("[#] ", w.user.NickName, ": ", reply)
 					} else if !w.cfg.Tuling.GroupOnly {
 						if w.auto {
 							reply, err := w.getTulingReply(m.Content, m.FromUserName)
@@ -750,8 +761,20 @@ func (w *Wecat) get(uri string) ([]byte, error) {
 	return ioutil.ReadAll(resp.Body)
 }
 
+func buildJson(data map[string]interface{}) ([]byte, error) {
+	buf := bytes.NewBufferString("")
+	encoder := json.NewEncoder(buf)
+	encoder.SetEscapeHTML(false)
+	if err := encoder.Encode(&data); err != nil {
+		return nil, err
+	} else {
+		return buf.Bytes(), nil
+	}
+}
+
 func (w *Wecat) post(uri string, params map[string]interface{}) ([]byte, error) {
-	data, err := json.Marshal(params)
+	//data, err := json.Marshal(params)
+	data, err := buildJson(params)
 	if err != nil {
 		return nil, err
 	}
