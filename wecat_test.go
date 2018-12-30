@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/op/go-logging"
 	"io/ioutil"
 	"net/http"
 	"testing"
@@ -19,6 +20,7 @@ var wx *Wecat
 
 func TestWxStart(t *testing.T) {
 	fmt.Println(cfg)
+	wx.SetLogLevel(logging.WARNING)
 	if wx == nil {
 		w, err := NewWecat(cfg)
 		if err != nil {
@@ -45,6 +47,8 @@ func TestWxConnect(t *testing.T) {
 		wx = w
 	}
 
+	wx.SetRobotName("JacK")
+	wx.SetLogLevel(logging.INFO)
 	if err := wx.Connect(); err != nil {
 		t.Error(err)
 	}
@@ -59,14 +63,16 @@ func TestSendGroupMessage(t *testing.T) {
 		wx = w
 	}
 	if wx.IsConnected() {
-		if err := wx.SendGroupMessage("test only!!!\n环行\n", "test群"); err != nil {
+		if err := wx.SendGroupMessage("test only!!!\n测试换行\n", "test群"); err != nil {
 			t.Error(err)
 		}
 		//wx.Dail()
 	} else {
 		t.Log("Not login, no test SendGroupMessage")
 	}
-
+	if err := wx.Logout(); err != nil {
+		t.Error(err)
+	}
 }
 
 func TestTuling(t *testing.T) {
@@ -89,8 +95,8 @@ func TestTuling(t *testing.T) {
 	}
 
 	req.Header.Set("Content-Type", "application/json;charset=utf-8")
-	req.Header.Add("Referer", WxReferer)
-	req.Header.Add("User-agent", WxUserAgent)
+	req.Header.Add("Referer", wxReferer)
+	req.Header.Add("User-agent", wxUserAgent)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		fmt.Println(err)

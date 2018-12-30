@@ -19,7 +19,7 @@ import (
 	"time"
 	"unicode"
 
-	"log"
+	"github.com/op/go-logging"
 
 	"github.com/kjx98/golib/to"
 )
@@ -37,15 +37,15 @@ type Wecat struct {
 	syncHost    string
 	client      *http.Client
 	auto        bool
-	showRebot   bool
 	bConnected  bool
+	robotName   string
 	contacts    map[string]Contact
 }
 
 const (
-	LoginBaseURL = "https://login.weixin.qq.com"
-	WxReferer    = "https://wx.qq.com/"
-	WxUserAgent  = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2840.71 Safari/537.36"
+	wxLoginBaseURL = "https://login.weixin.qq.com"
+	wxReferer      = "https://wx.qq.com/"
+	wxUserAgent    = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2840.71 Safari/537.36"
 )
 
 var (
@@ -59,11 +59,14 @@ var (
 	errUIN          = errors.New("haven't get uin")
 	errPushLogin    = errors.New("PushLogin error")
 )
+var log = logging.MustGetLogger("wecat")
 
+// HandleFunc type
+//	used for RegisterHandle
 type HandlerFunc func(args []string) string
 
 var (
-	Hosts = []string{
+	wxHosts = []string{
 		"webpush.wx.qq.com",
 		"webpush.weixin.qq.com",
 		"webpush.wx2.qq.com",
@@ -82,7 +85,7 @@ var weGroups = map[string]string{}
 func NewWecat(cfg Config) (*Wecat, error) {
 	jar, err := cookiejar.New(nil)
 	if err != nil {
-		log.Print("get cookiejar fail", err)
+		log.Error("get cookiejar fail", err)
 		return nil, err
 	}
 
@@ -104,6 +107,16 @@ func NewWecat(cfg Config) (*Wecat, error) {
 	}, nil
 }
 
+// SetLogLevel
+//	logging.Level   from github.com/op/go-logging
+func (w *Wecat) SetLogLevel(l logging.Level) {
+	logging.SetLevel(l, "wecat")
+}
+
+func (w *Wecat) SetRobotName(name string) {
+	w.robotName = name
+}
+
 func (w *Wecat) GetUUID() error {
 	if w.uuid != "" {
 		return nil
@@ -112,12 +125,12 @@ func (w *Wecat) GetUUID() error {
 	// new AppIP useless
 	/* 网页版微信有两个AppID，早期的是wx782c26e4c19acffb，在微信客户端上显示为应用名称为Web微信；现在用的是wxeb7ec651dd0aefa9，显示名称为微信网页版
 	 */
-	uri := LoginBaseURL + "/jslogin?appid=wx782c26e4c19acffb&fun=new&lang=zh_CN&_=" + w.timestamp()
-	//uri := LoginBaseURL + "/jslogin?appid=wxeb7ec651dd0aefa9&fun=new&lang=zh_CN&_=" + w.timestamp()
+	uri := wxLoginBaseURL + "/jslogin?appid=wx782c26e4c19acffb&fun=new&lang=zh_CN&_=" + w.timestamp()
+	//uri := wxLoginBaseURL + "/jslogin?appid=wxeb7ec651dd0aefa9&fun=new&lang=zh_CN&_=" + w.timestamp()
 	//result: window.QRLogin.code = 200; window.QRLogin.uuid = "xxx"; //wx782c26e4c19acffb  wxeb7ec651dd0aefa9
 	data, err := w.get(uri)
 	if err != nil {
-		log.Print("get uuid fail", err)
+		log.Error("get uuid fail", err)
 		return err
 	}
 
@@ -142,7 +155,7 @@ func (w *Wecat) GetUUID() error {
 func (w *Wecat) PushLogin() error {
 	if w.loginRes.Wxuin == "" {
 		if w.cfg.Uin == "" {
-			log.Print("Never logined", errUIN)
+			log.Error("Never logined", errUIN)
 			return errUIN
 		}
 		w.loginRes.Wxuin = w.cfg.Uin
@@ -159,11 +172,11 @@ func (w *Wecat) PushLogin() error {
 			return err
 		}
 		if to.Int(res.RetCode) != 0 {
-			log.Print("PushLogin", res.Msg)
+			log.Error("PushLogin", res.Msg)
 			return errPushLogin
 		}
 		w.uuid = res.Uuid
-		log.Print("PushLogin ok, uuid:", res.Uuid, ",uin:", w.loginRes.Wxuin)
+		log.Info("PushLogin ok, uuid:", res.Uuid, ",uin:", w.loginRes.Wxuin)
 	}
 
 	// resp:   { 'msg':'all ok', 'uuid':'xxx', 'ret':'0' }
@@ -173,24 +186,24 @@ func (w *Wecat) PushLogin() error {
 func (w *Wecat) GenQrcode() error {
 	if w.uuid == "" {
 		err := errors.New("haven't get uuid")
-		log.Print("gen qrcode fail", err)
+		log.Error("gen qrcode fail", err)
 		return err
 	}
 
-	uri := LoginBaseURL + "/qrcode/" + w.uuid + "?t=webwx&_=" + w.timestamp()
-	//uri := LoginBaseURL + "/l/" + w.uuid
+	uri := wxLoginBaseURL + "/qrcode/" + w.uuid + "?t=webwx&_=" + w.timestamp()
+	//uri := wxLoginBaseURL + "/l/" + w.uuid
 
 	resp, err := w.get(uri)
 
 	//err = dispJPEG([]byte(resp))
 	img, err := jpeg.Decode(bytes.NewReader([]byte(resp)))
 	if err != nil {
-		log.Print("Decode Qrcode", err)
+		log.Error("Decode Qrcode", err)
 		return err
 	}
 
 	if err := dispImage(img); err != nil {
-		log.Print("dispImage:", err)
+		log.Error("dispImage:", err)
 		return err
 	}
 
@@ -214,7 +227,7 @@ func (w *Wecat) checkLogin(scanned bool) error {
 			jpegLoop()
 		}
 		uri := fmt.Sprintf("%s/cgi-bin/mmwebwx-bin/login?tip=%d&uuid=%s&_=%s",
-			LoginBaseURL, tip, w.uuid, w.timestamp())
+			wxLoginBaseURL, tip, w.uuid, w.timestamp())
 		data, err := w.get(uri)
 		if err != nil {
 			return err
@@ -226,12 +239,12 @@ func (w *Wecat) checkLogin(scanned bool) error {
 			code := codes[1]
 			switch code {
 			case "201":
-				log.Print("scan code success")
+				log.Info("scan code success")
 				shutJpegWin()
 				scanned = true
 				tip = 0
 			case "200":
-				log.Print("login success, wait to redirect")
+				log.Info("login success, wait to redirect")
 				re := regexp.MustCompile(`window.redirect_uri="(\S+?)";`)
 				redirctURIs := re.FindStringSubmatch(string(data))
 
@@ -242,22 +255,22 @@ func (w *Wecat) checkLogin(scanned bool) error {
 					baseURIs := re.FindAllStringIndex(redirctURI, -1)
 					w.baseURI = redirctURI[:baseURIs[len(baseURIs)-1][0]]
 					if err := w.redirect(); err != nil {
-						log.Print(err)
+						log.Error(err)
 						return err
 					}
 					w.bConnected = true
 					return nil
 				}
 
-				log.Print("get redirct URL fail")
+				log.Notice("get redirct URL fail")
 
 			case "408":
 				err := errLoginTimeout
-				log.Print(err)
+				log.Error(err)
 				return err
 			default:
 				err := errLoginFail
-				log.Print(err)
+				log.Error(err)
 				return err
 			}
 		} else {
@@ -271,13 +284,13 @@ func (w *Wecat) checkLogin(scanned bool) error {
 func (w *Wecat) redirect() error {
 	data, err := w.get(w.redirectURI)
 	if err != nil {
-		log.Print("redirct fail", err)
+		log.Error("redirct fail", err)
 		return err
 	}
 
 	var lr LoginResult
 	if err = xml.Unmarshal(data, &lr); err != nil {
-		log.Print("unmarshal fail", err)
+		log.Error("unmarshal fail", err)
 		return err
 	}
 
@@ -289,13 +302,40 @@ func (w *Wecat) redirect() error {
 	return nil
 }
 
+// webwxlogout?redirect=1&type=0&skey=...
+// application/x-www-form-urlenconded
+//    sid=
+//    uin=
+func (w *Wecat) Logout() error {
+	uri := fmt.Sprintf("%s/webwxlogout?redirect=1&type=1&skey=%s", w.baseURI,
+		w.loginRes.Skey)
+	var urlValues = url.Values{}
+	urlValues.Set("sid", to.String(w.baseRequest["Sid"]))
+	urlValues.Set("uin", to.String(w.baseRequest["Uin"]))
+	resp, err := http.PostForm(uri, urlValues)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	/*
+		res, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return nil
+		}
+		log.Info(string(res))
+	*/
+	return nil
+}
+
+// Init after Login/PushLogin
 func (w *Wecat) Init() error {
-	uri := fmt.Sprintf("%s/webwxinit?pass_ticket=%s&skey=%s&r=%s", w.baseURI, w.loginRes.PassTicket, w.loginRes.Skey, w.timestamp())
+	uri := fmt.Sprintf("%s/webwxinit?pass_ticket=%s&skey=%s&r=%s", w.baseURI,
+		w.loginRes.PassTicket, w.loginRes.Skey, w.timestamp())
 	params := make(map[string]interface{})
 	params["BaseRequest"] = w.baseRequest
 	data, err := w.post(uri, params)
 	if err != nil {
-		log.Print("init post fail", err)
+		log.Error("init post fail", err)
 		return err
 	}
 
@@ -305,10 +345,16 @@ func (w *Wecat) Init() error {
 	}
 
 	w.user = res.User
+	log.Infof("My name: %s, remarkName(%s), uin(%d)", w.user.UserName,
+		w.user.RemarkName, w.user.Uin)
+	// change RemarkName to robotName, for monitor
+	if w.robotName != "" {
+		w.user.RemarkName = w.robotName
+	}
 	w.syncKey = res.SyncKey
 
 	if res.BaseResponse.Ret != 0 {
-		log.Print(errInit, "errMsg:", res.BaseResponse.ErrMsg)
+		log.Warning(errInit, "errMsg:", res.BaseResponse.ErrMsg)
 	} else {
 		// update Contacts
 		for _, contact := range res.ContactList {
@@ -335,7 +381,7 @@ func (w *Wecat) strSyncKey() string {
 }
 
 func (w *Wecat) SyncCheck() (retcode, selector int) {
-	for _, host := range Hosts {
+	for _, host := range wxHosts {
 		uri := fmt.Sprintf("https://%s/cgi-bin/mmwebwx-bin/synccheck", host)
 		v := url.Values{}
 		v.Add("r", w.timestamp())
@@ -349,7 +395,7 @@ func (w *Wecat) SyncCheck() (retcode, selector int) {
 
 		data, err := w.get(uri)
 		if err != nil {
-			//log.Print("sync check fail", err)
+			//log.Warning("sync check fail", err)
 			continue
 		}
 
@@ -452,27 +498,27 @@ func (w *Wecat) WxSync() (*Message, error) {
 
 func (w *Wecat) run(desc string, f func() error) {
 	start := time.Now()
-	log.Println(desc)
+	log.Info(desc)
 	if err := f(); err != nil {
-		log.Print("FAIL, exit now", err)
+		log.Error("FAIL, exit now", err)
 		os.Exit(1)
 	}
 
-	log.Printf("SUCCESS, use time: %.3f seconds",
+	log.Infof("SUCCESS, use time: %.3f seconds",
 		time.Now().Sub(start).Seconds())
 }
 
 func (w *Wecat) SendGroupMessage(message string, to string) error {
 	if toGrp, ok := weGroups[to]; ok {
-		log.Print("SendGroupMsg:", toGrp, "--->", message)
+		log.Info("SendGroupMsg:", toGrp, "--->", message)
 		return w.SendMessage(message, toGrp)
 	}
 	return errNoGroup
 }
 
 func (w *Wecat) SendMessage(message string, to string) error {
-	uri := fmt.Sprintf("%s/webwxsendmsg?pass_ticket=%s", w.baseURI,
-		w.loginRes.PassTicket)
+	uri := fmt.Sprintf("%s/webwxsendmsg?pass_ticket=%s",
+		w.baseURI, w.loginRes.PassTicket)
 	clientMsgID := w.timestamp() + "0" + strconv.Itoa(rand.Int())[3:6]
 	params := make(map[string]interface{})
 	params["BaseRequest"] = w.baseRequest
@@ -486,6 +532,7 @@ func (w *Wecat) SendMessage(message string, to string) error {
 	msg["Status"] = 3
 	msg["ImgStatus"] = 1
 	params["Msg"] = msg
+	params["Scene"] = 0
 	_, err := w.post(uri, params)
 	if err != nil {
 		return err
@@ -540,12 +587,12 @@ func (w *Wecat) handle(msg *Message) error {
 					content = strings.Replace(content, "@"+w.user.NickName, "", -1)
 					content = strings.Replace(content, "@"+w.user.RemarkName, "", -1)
 					//println("From group: ", w.getNickName(m.FromUserName))
-					fmt.Println("[*] ", w.getNickName(m.FromUserName), ": ", content)
+					log.Info("[*] ", w.getNickName(m.FromUserName), ": ", content)
 					cmds := strings.Split(unicodeTrim(content), ",")
 					if len(cmds) == 0 {
 						return nil
 					}
-					//log.Print("cmds", cmds)
+					//log.Info("cmds", cmds)
 					if cmdFunc, ok := handlers[strings.Trim(cmds[0], " \t")]; ok {
 						//println("cmd", cmds[0], "argc:", len(cmds[1:]))
 						reply := cmdFunc(cmds[1:])
@@ -562,9 +609,6 @@ func (w *Wecat) handle(msg *Message) error {
 							return err
 						}
 
-						if w.showRebot {
-							reply = "Gamma: " + reply
-						}
 						if err := w.SendMessage(reply, m.FromUserName); err != nil {
 							return err
 						}
@@ -573,7 +617,7 @@ func (w *Wecat) handle(msg *Message) error {
 						fmt.Println("[#] ", w.user.NickName, ": ", reply)
 					}
 				} else {
-					log.Print("From group: ", w.getNickName(m.FromUserName))
+					log.Info("From group: ", w.getNickName(m.FromUserName))
 					contents := strings.Split(m.Content, ":<br/>")
 					fmt.Println("[*] ", w.getNickName(contents[0]), ": ", contents[1])
 				}
@@ -600,9 +644,6 @@ func (w *Wecat) handle(msg *Message) error {
 								return err
 							}
 
-							if w.showRebot {
-								reply = "Gamma: " + reply
-							}
 							if err := w.SendMessage(reply, m.FromUserName); err != nil {
 								return err
 							}
@@ -616,10 +657,6 @@ func (w *Wecat) handle(msg *Message) error {
 						w.auto = false
 					case "来人":
 						w.auto = true
-					case "显示":
-						w.showRebot = true
-					case "隐身":
-						w.showRebot = false
 					default:
 						fmt.Println("[#] ", w.user.NickName, ": ", m.Content)
 					}
@@ -627,10 +664,10 @@ func (w *Wecat) handle(msg *Message) error {
 			}
 		case 51:
 			if m.Content == "" {
-				log.Print("sync ok")
+				log.Info("sync ok")
 			} else {
-				log.Print("sync ok, 最近联系的联系人:", m.StatusNotifyUserName)
-				log.Print("content-->", m.Content)
+				log.Info("sync ok, 最近联系的联系人:", m.StatusNotifyUserName)
+				log.Info("content-->", m.Content)
 			}
 		case 9999: // SYSNOTICE
 		case 10000: //system message
@@ -645,27 +682,27 @@ func (w *Wecat) Dail() error {
 	for {
 		retcode, selector := w.SyncCheck()
 		switch retcode {
-		case 1100:
-			log.Print("logout with phone, bye")
+		case 1100: //未登录提示
+			log.Error("logout with phone, bye")
 			w.bConnected = false
 			return nil
-		case 1101:
-			log.Print("login web wecat at other palce, bye")
+		case 1101: //未检测到登陆？
+			log.Error("login web wecat at other palce, bye")
 			w.bConnected = false
 			return nil
-		case 1102:
+		case 1102: //cookie值无效
 			// web wecat wanna login
-			log.Print("web wecat try to login")
+			log.Warning("cookie值无效")
 		case 0:
 			switch selector {
 			case 2:
 				msg, err := w.WxSync()
 				if err != nil {
-					log.Print(err)
+					log.Warning(err)
 				}
 
 				if err := w.handle(msg); err != nil {
-					log.Print(err)
+					log.Error(err)
 				}
 			case 0:
 				time.Sleep(time.Second)
@@ -677,11 +714,13 @@ func (w *Wecat) Dail() error {
 				time.Sleep(time.Second)
 			}
 		default:
-			log.Print("unknow code", retcode)
+			log.Error("unknow code", retcode)
 		}
 	}
 }
 
+// Start   test purpose
+//	start one session started with GenQrcode,Login
 func (w *Wecat) Start() {
 	w.run("[*] get uuid ...", w.GetUUID)
 	w.run("[*] generate qrcode ...", w.GenQrcode)
@@ -705,6 +744,7 @@ func (w *Wecat) Start() {
 	*/
 }
 
+// Connect Trylogin without Qrcode
 func (w *Wecat) Connect() error {
 	if w.loginRes.Wxuin != "" {
 		if err := w.PushLogin(); err != nil {
@@ -723,7 +763,7 @@ func (w *Wecat) Connect() error {
 	}
 
 	if err := w.Init(); err == nil {
-		log.Print("wxInit ok")
+		log.Info("wxInit ok")
 	} else {
 		return err
 	}
@@ -748,8 +788,8 @@ func (w *Wecat) get(uri string) ([]byte, error) {
 		return nil, err
 	}
 
-	req.Header.Add("Referer", WxReferer)
-	req.Header.Add("User-agent", WxUserAgent)
+	req.Header.Add("Referer", wxReferer)
+	req.Header.Add("User-agent", wxUserAgent)
 
 	resp, err := w.client.Do(req)
 	if err != nil {
@@ -786,8 +826,8 @@ func (w *Wecat) post(uri string, params map[string]interface{}) ([]byte, error) 
 	}
 
 	req.Header.Set("Content-Type", "application/json;charset=utf-8")
-	req.Header.Add("Referer", WxReferer)
-	req.Header.Add("User-agent", WxUserAgent)
+	req.Header.Add("Referer", wxReferer)
+	req.Header.Add("User-agent", wxUserAgent)
 
 	resp, err := w.client.Do(req)
 	if err != nil {
@@ -797,4 +837,15 @@ func (w *Wecat) post(uri string, params map[string]interface{}) ([]byte, error) 
 	defer resp.Body.Close()
 
 	return ioutil.ReadAll(resp.Body)
+}
+
+//	`%{color}%{time:15:04:05.000} %{shortfunc} ▶ %{level:.4s} %{id:03x}%{color:reset} %{message}`,
+func init() {
+	var format = logging.MustStringFormatter(
+		`%{color}%{time:01-02 15:04:05}  ▶ %{level:.4s} %{color:reset} %{message}`,
+	)
+
+	logback := logging.NewLogBackend(os.Stderr, "", 0)
+	logfmt := logging.NewBackendFormatter(logback, format)
+	logging.SetBackend(logfmt)
 }
