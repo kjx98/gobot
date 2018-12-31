@@ -235,3 +235,9 @@ type Message struct {
 	SKey                   string        `json:"SKey"`
 	SyncCheckKey           SyncKey       `json:"SyncCheckKey"`
 }
+
+type SendMessageResult struct {
+	BaseResponse BaseResponse `json:"BaseResponse"`
+	MsgID        string       `json:"MsgIDi,omitempty"`
+	LocalID      string       `json:"LocalUD,omitempty"`
+}

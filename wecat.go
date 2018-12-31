@@ -103,7 +103,7 @@ func NewWecat(cfg Config) (*Wecat, error) {
 		deviceID:    "e" + randID[2:17],
 		baseRequest: make(map[string]interface{}),
 		contacts:    make(map[string]Contact),
-		auto:        true,
+		auto:        false,
 	}, nil
 }
 
@@ -307,8 +307,7 @@ func (w *Wecat) redirect() error {
 //    sid=
 //    uin=
 func (w *Wecat) Logout() error {
-	uri := fmt.Sprintf("%s/webwxlogout?redirect=1&type=1&skey=%s", w.baseURI,
-		w.loginRes.Skey)
+	uri := w.baseURI + "/webwxlogout?redirect=1&type=1&skey=" + w.loginRes.Skey
 	var urlValues = url.Values{}
 	urlValues.Set("sid", to.String(w.baseRequest["Sid"]))
 	urlValues.Set("uin", to.String(w.baseRequest["Uin"]))
@@ -382,7 +381,7 @@ func (w *Wecat) strSyncKey() string {
 
 func (w *Wecat) SyncCheck() (retcode, selector int) {
 	for _, host := range wxHosts {
-		uri := fmt.Sprintf("https://%s/cgi-bin/mmwebwx-bin/synccheck", host)
+		uri := "https://" + host + "/cgi-bin/mmwebwx-bin/synccheck"
 		v := url.Values{}
 		v.Add("r", w.timestamp())
 		v.Add("sid", w.loginRes.Wxsid)
@@ -410,7 +409,8 @@ func (w *Wecat) SyncCheck() (retcode, selector int) {
 }
 
 func (w *Wecat) StatusNotify() error {
-	uri := fmt.Sprintf("%s/webwxstatusnotify?lang=zh_CN&pass_ticket=%s", w.baseURI, w.loginRes.PassTicket)
+	uri := w.baseURI + "/webwxstatusnotify?lang=zh_CN&pass_ticket=" +
+		w.loginRes.PassTicket
 	params := make(map[string]interface{})
 	params["BaseRequest"] = w.baseRequest
 	params["Code"] = 3
@@ -435,7 +435,8 @@ func (w *Wecat) StatusNotify() error {
 }
 
 func (w *Wecat) GetContact() error {
-	uri := fmt.Sprintf("%s/webwxgetcontact?sid=%s&skey=%s&pass_ticket=%s", w.baseURI, w.loginRes.Wxsid, w.loginRes.Skey, w.loginRes.PassTicket)
+	uri := fmt.Sprintf("%s/webwxgetcontact?sid=%s&skey=%s&pass_ticket=%s",
+		w.baseURI, w.loginRes.Wxsid, w.loginRes.Skey, w.loginRes.PassTicket)
 	params := make(map[string]interface{})
 	params["BaseRequest"] = w.baseRequest
 
@@ -473,7 +474,8 @@ func (w *Wecat) updateContacts(contact Contact) {
 }
 
 func (w *Wecat) WxSync() (*Message, error) {
-	uri := fmt.Sprintf("%s/webwxsync?sid=%s&skey=%s&pass_ticket=%s", w.baseURI, w.loginRes.Wxsid, w.loginRes.Skey, w.loginRes.PassTicket)
+	uri := fmt.Sprintf("%s/webwxsync?sid=%s&skey=%s&pass_ticket=%s",
+		w.baseURI, w.loginRes.Wxsid, w.loginRes.Skey, w.loginRes.PassTicket)
 	params := make(map[string]interface{})
 	params["BaseRequest"] = w.baseRequest
 	params["SyncKey"] = w.syncKey
@@ -517,8 +519,7 @@ func (w *Wecat) SendGroupMessage(message string, to string) error {
 }
 
 func (w *Wecat) SendMessage(message string, to string) error {
-	uri := fmt.Sprintf("%s/webwxsendmsg?pass_ticket=%s",
-		w.baseURI, w.loginRes.PassTicket)
+	uri := w.baseURI + "/webwxsendmsg?pass_ticket=" + w.loginRes.PassTicket
 	clientMsgID := w.timestamp() + "0" + strconv.Itoa(rand.Int())[3:6]
 	params := make(map[string]interface{})
 	params["BaseRequest"] = w.baseRequest
@@ -533,15 +534,24 @@ func (w *Wecat) SendMessage(message string, to string) error {
 	msg["ImgStatus"] = 1
 	params["Msg"] = msg
 	params["Scene"] = 0
-	_, err := w.post(uri, params)
+	data, err := w.post(uri, params)
 	if err != nil {
 		return err
 	}
+	var res SendMessageResult
 
+	if err := json.Unmarshal(data, &res); err != nil {
+		return err
+	}
+	if retC := res.BaseResponse.Ret; retC != 0 {
+		log.Errorf("SendMessage Retcode: %d,%s", retC, res.BaseResponse.ErrMsg)
+		return fmt.Errorf("SendMessage Retcode: %d", retC)
+	}
 	return nil
 }
 
 func (w *Wecat) RegisterHandle(cmd string, cmdFunc HandlerFunc) error {
+	cmd = strings.ToLower(cmd)
 	if _, ok := handlers[cmd]; ok {
 		return errHandleExist
 	}
@@ -593,6 +603,7 @@ func (w *Wecat) handle(msg *Message) error {
 						return nil
 					}
 					//log.Info("cmds", cmds)
+					cmds[0] = strings.ToLower(cmds[0])
 					if cmdFunc, ok := handlers[strings.Trim(cmds[0], " \t")]; ok {
 						//println("cmd", cmds[0], "argc:", len(cmds[1:]))
 						reply := cmdFunc(cmds[1:])
@@ -600,8 +611,7 @@ func (w *Wecat) handle(msg *Message) error {
 							if err := w.SendMessage(reply, m.FromUserName); err != nil {
 								return err
 							}
-							//fmt.Printf("%#v", m)
-							fmt.Println("[#] ", w.user.NickName, ": ", reply)
+							log.Info("[#] ", w.user.NickName, ": ", reply)
 						}
 					} else if w.auto {
 						reply, err := w.getTulingReply(m.Content, m.FromUserName)
@@ -614,20 +624,21 @@ func (w *Wecat) handle(msg *Message) error {
 						}
 						// copy to test群
 						//w.SendGroupMessage(reply, "test群")
-						fmt.Println("[#] ", w.user.NickName, ": ", reply)
+						log.Info("[#] ", w.user.NickName, ": ", reply)
 					}
 				} else {
 					log.Info("From group: ", w.getNickName(m.FromUserName))
 					contents := strings.Split(m.Content, ":<br/>")
-					fmt.Println("[*] ", w.getNickName(contents[0]), ": ", contents[1])
+					log.Info("[*] ", w.getNickName(contents[0]), ": ", contents[1])
 				}
 			} else {
 				if m.FromUserName != w.user.UserName {
-					fmt.Println("[*] ", w.getNickName(m.FromUserName), ": ", m.Content)
+					log.Info("[*] ", w.getNickName(m.FromUserName), ": ", m.Content)
 					cmds := strings.Split(unicodeTrim(m.Content), ",")
 					if len(cmds) == 0 {
 						return nil
 					}
+					cmds[0] = strings.ToLower(cmds[0])
 					if cmdFunc, ok := handlers[strings.Trim(cmds[0], " \t")]; ok {
 						//println("cmd", cmds[0], "argc:", len(cmds[1:]))
 						reply := cmdFunc(cmds[1:])
@@ -635,7 +646,7 @@ func (w *Wecat) handle(msg *Message) error {
 							if err := w.SendMessage(reply, m.FromUserName); err != nil {
 								return err
 							}
-							fmt.Println("[#] ", w.user.NickName, ": ", reply)
+							log.Info("[#] ", w.user.NickName, ": ", reply)
 						}
 					} else if !w.cfg.Tuling.GroupOnly {
 						if w.auto {
@@ -647,7 +658,7 @@ func (w *Wecat) handle(msg *Message) error {
 							if err := w.SendMessage(reply, m.FromUserName); err != nil {
 								return err
 							}
-							fmt.Println("[#] ", w.user.NickName, ": ", reply)
+							log.Info("[#] ", w.user.NickName, ": ", reply)
 						}
 					}
 
@@ -658,7 +669,7 @@ func (w *Wecat) handle(msg *Message) error {
 					case "来人":
 						w.auto = true
 					default:
-						fmt.Println("[#] ", w.user.NickName, ": ", m.Content)
+						log.Info("[#] ", w.user.NickName, ": ", m.Content)
 					}
 				}
 			}
@@ -731,9 +742,9 @@ func (w *Wecat) Start() {
 	/*
 		for _, cc := range w.contacts {
 			if cc.VerifyFlag&8 == 0 {
-				fmt.Printf("%s,(%s),(%s)\n", cc.UserName, cc.NickName, cc.RemarkName)
+				log.Infof("%s,(%s),(%s)\n", cc.UserName, cc.NickName, cc.RemarkName)
 			} else {
-				fmt.Printf("pub(%s),(%s),(%s)\n", cc.UserName, cc.NickName, cc.RemarkName)
+				log.Infof("pub(%s),(%s),(%s)\n", cc.UserName, cc.NickName, cc.RemarkName)
 			}
 		}
 	*/
