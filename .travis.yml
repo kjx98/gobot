@@ -11,6 +11,7 @@ before_install:
 install:
   - go get github.com/kjx98/golib/to
   - go get github.com/kjx98/go-sdl2/sdl
+  - go get github.com/op/go-logging
 
 
 script:
