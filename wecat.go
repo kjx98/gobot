@@ -592,7 +592,8 @@ func (w *Wecat) handle(msg *Message) error {
 		case 1:
 			if m.FromUserName[:2] == "@@" { //群消息
 				content := strings.Split(m.Content, ":<br/>")[1]
-				if (w.user.NickName != "" && strings.Contains(content, "@"+w.user.NickName)) ||
+				if (w.robotName == "" && w.user.NickName != "" &&
+					strings.Contains(content, "@"+w.user.NickName)) ||
 					(w.user.RemarkName != "" && strings.Contains(content, "@"+w.user.RemarkName)) {
 					content = strings.Replace(content, "@"+w.user.NickName, "", -1)
 					content = strings.Replace(content, "@"+w.user.RemarkName, "", -1)
