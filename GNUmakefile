@@ -22,14 +22,14 @@ MAKEFILE=GNUmakefile
 all: bin/rebot
 	@[ -d bin ] || exit
 
-bin/rebot: rebot/main.go
+bin/rebot: rebot/main.go sdl2.go config.go wecat.go
 	@[ -d bin ] || mkdir bin
 	go build -o bin/rebot rebot/main.go
 	@strip $@ || echo "rebot OK"
 
 win64: bin/rebotWin64.zip
 
-bin/rebot.exe: rebot/main.go sdl2.go wecat.go
+bin/rebot.exe: rebot/main.go sdl2.go config.go wecat.go
 	(. ./mingw64-env.sh; go build -o $@ rebot/main.go)
 	@strip $@ || echo "rebot.exe win64 OK"
 

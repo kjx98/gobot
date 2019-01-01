@@ -13,6 +13,13 @@ type PushLoginResult struct {
 	Uuid    string `json:"uuid,omitempty"`
 }
 
+// Ret code for result code
+//		0		success
+//		-14		ticket error
+//		1		param error
+//		1100	not logined
+//		1101	not check login
+//		1102	cookie error?
 type BaseResponse struct {
 	Ret    int    `json:"Ret"`
 	ErrMsg string `json:"ErrMsg"`

@@ -103,7 +103,7 @@ func NewWecat(cfg Config) (*Wecat, error) {
 		deviceID:    "e" + randID[2:17],
 		baseRequest: make(map[string]interface{}),
 		contacts:    make(map[string]Contact),
-		auto:        false,
+		auto:        true,
 	}, nil
 }
 
@@ -115,6 +115,7 @@ func (w *Wecat) SetLogLevel(l logging.Level) {
 
 func (w *Wecat) SetRobotName(name string) {
 	w.robotName = name
+	//w.auto = false
 }
 
 func (w *Wecat) GetUUID() error {
@@ -307,7 +308,7 @@ func (w *Wecat) redirect() error {
 //    sid=
 //    uin=
 func (w *Wecat) Logout() error {
-	uri := w.baseURI + "/webwxlogout?redirect=1&type=1&skey=" + w.loginRes.Skey
+	uri := w.baseURI + "/webwxlogout?redirect=1&type=0&skey=" + w.loginRes.Skey
 	var urlValues = url.Values{}
 	urlValues.Set("sid", to.String(w.baseRequest["Sid"]))
 	urlValues.Set("uin", to.String(w.baseRequest["Uin"]))
@@ -352,8 +353,8 @@ func (w *Wecat) Init() error {
 	}
 	w.syncKey = res.SyncKey
 
-	if res.BaseResponse.Ret != 0 {
-		log.Warning(errInit, "errMsg:", res.BaseResponse.ErrMsg)
+	if retC := res.BaseResponse.Ret; retC != 0 {
+		log.Warning(errInit, "retC:", retC, "errMsg:", res.BaseResponse.ErrMsg)
 	} else {
 		// update Contacts
 		for _, contact := range res.ContactList {
@@ -691,7 +692,15 @@ func (w *Wecat) handle(msg *Message) error {
 }
 
 func (w *Wecat) Dail() error {
-	for {
+	if err := w.dailLoop(0); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (w *Wecat) dailLoop(timerCnt int) error {
+	endT := time.Now().Unix() + int64(timerCnt)
+	for timerCnt == 0 || endT > time.Now().Unix() {
 		retcode, selector := w.SyncCheck()
 		switch retcode {
 		case 1100: //未登录提示
@@ -729,6 +738,7 @@ func (w *Wecat) Dail() error {
 			log.Error("unknow code", retcode)
 		}
 	}
+	return nil
 }
 
 // Start   test purpose

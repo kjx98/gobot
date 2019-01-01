@@ -4,11 +4,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/op/go-logging"
 	"io/ioutil"
 	"net/http"
 	"testing"
 	"time"
+
+	"github.com/op/go-logging"
 )
 
 func timeFunc(args []string) string {
@@ -72,6 +73,13 @@ func TestSendGroupMessage(t *testing.T) {
 	}
 	if err := wx.Logout(); err != nil {
 		t.Error(err)
+	}
+	if wx.IsConnected() {
+		startT := time.Now()
+		wx.dailLoop(60)
+		endt := time.Now()
+		coT := endt.Sub(startT)
+		t.Logf("dialLoop cost %.3f seconds", coT.Seconds())
 	}
 }
 
