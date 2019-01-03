@@ -82,6 +82,7 @@ var (
 
 var handlers = map[string]HandlerFunc{}
 var weGroups = map[string]string{}
+var timeFmt = "01-02 15:04:05"
 
 func NewWecat(cfg Config) (*Wecat, error) {
 	jar, err := cookiejar.New(nil)
@@ -110,8 +111,10 @@ func NewWecat(cfg Config) (*Wecat, error) {
 
 func defTimeFunc(args []string) string {
 	tt := time.Now()
-	return fmt.Sprintf("%02d-%02d %02d:%02d:%02d", int(tt.Month()), tt.Day(),
-		tt.Hour(), tt.Minute(), tt.Second())
+	if len(args) > 0 && strings.ToUpper(strings.Trim(args[0], " \t")) == "UTC" {
+		tt = tt.UTC()
+	}
+	return tt.Format(timeFmt)
 }
 
 func (w *Wecat) RegisterTimeCmd() {
@@ -524,6 +527,9 @@ func (w *Wecat) run(desc string, f func() error) {
 }
 
 func (w *Wecat) SendGroupMessage(message string, to string) error {
+	if to == "" {
+		to = w.defGroup
+	}
 	if toGrp, ok := weGroups[to]; ok {
 		log.Info("SendGroupMsg:", toGrp, "--->", message)
 		return w.SendMessage(message, toGrp)
@@ -645,14 +651,14 @@ func (w *Wecat) handle(msg *Message) error {
 				} else {
 					log.Info("From group: ", w.getNickName(m.FromUserName))
 					contents := strings.Split(m.Content, ":<br/>")
-					log.Info("[**] ", w.getNickName(contents[0]), ": ", contents[1])
+					log.Info("[*#] ", w.getNickName(contents[0]), ": ", contents[1])
 				}
 			} else {
 				if m.FromUserName != w.user.UserName {
 					if w.cfg.Tuling.GroupOnly {
 						return nil
 					}
-					log.Info("[*] ", w.getNickName(m.FromUserName), ": ", m.Content)
+					//log.Info("[*] ", w.getNickName(m.FromUserName), ": ", m.Content)
 					cmds := strings.Split(unicodeTrim(m.Content), ",")
 					if len(cmds) == 0 {
 						return nil
@@ -696,7 +702,8 @@ func (w *Wecat) handle(msg *Message) error {
 						if cmdFunc, ok := handlers[strings.Trim(cmds[0], " \t")]; ok {
 							reply := cmdFunc(cmds[1:])
 							if reply != "" {
-								if err := w.SendGroupMessage(reply, w.defGroup); err != nil {
+								if err := w.SendGroupMessage(reply, ""); err != nil {
+									log.Warning("send myself to defGroup", err)
 									return err
 								}
 								log.Info("[#] ", w.user.NickName, ": ", reply)
