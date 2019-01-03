@@ -631,10 +631,13 @@ func (w *Wecat) handle(msg *Message) error {
 				} else {
 					log.Info("From group: ", w.getNickName(m.FromUserName))
 					contents := strings.Split(m.Content, ":<br/>")
-					log.Info("[*] ", w.getNickName(contents[0]), ": ", contents[1])
+					log.Info("[**] ", w.getNickName(contents[0]), ": ", contents[1])
 				}
 			} else {
 				if m.FromUserName != w.user.UserName {
+					if w.cfg.Tuling.GroupOnly {
+						return nil
+					}
 					log.Info("[*] ", w.getNickName(m.FromUserName), ": ", m.Content)
 					cmds := strings.Split(unicodeTrim(m.Content), ",")
 					if len(cmds) == 0 {
@@ -650,7 +653,7 @@ func (w *Wecat) handle(msg *Message) error {
 							}
 							log.Info("[#] ", w.user.NickName, ": ", reply)
 						}
-					} else if !w.cfg.Tuling.GroupOnly {
+					} else {
 						if w.auto {
 							reply, err := w.getTulingReply(m.Content, m.FromUserName)
 							if err != nil {
@@ -663,7 +666,6 @@ func (w *Wecat) handle(msg *Message) error {
 							log.Info("[#] ", w.user.NickName, ": ", reply)
 						}
 					}
-
 				} else {
 					switch m.Content {
 					case "退下":
@@ -672,6 +674,22 @@ func (w *Wecat) handle(msg *Message) error {
 						w.auto = true
 					default:
 						log.Info("[#] ", w.user.NickName, ": ", m.Content)
+						content := strings.Replace(m.Content, "@"+w.user.RemarkName, "", -1)
+						cmds := strings.Split(unicodeTrim(content), ",")
+						if len(cmds) == 0 {
+							return nil
+						}
+						cmds[0] = strings.ToLower(cmds[0])
+						if cmdFunc, ok := handlers[strings.Trim(cmds[0], " \t")]; ok {
+							//println("cmd", cmds[0], "argc:", len(cmds[1:]))
+							reply := cmdFunc(cmds[1:])
+							if reply != "" {
+								if err := w.SendMessage(reply, m.FromUserName); err != nil {
+									return err
+								}
+								log.Info("[#] ", w.user.NickName, ": ", reply)
+							}
+						}
 					}
 				}
 			}
