@@ -12,10 +12,6 @@ import (
 	"github.com/op/go-logging"
 )
 
-func timeFunc(args []string) string {
-	return time.Now().Format("2006-01-02 15:03:04")
-}
-
 var cfg = NewConfig("")
 var wx *Wecat
 
@@ -30,8 +26,7 @@ func TestWxStart(t *testing.T) {
 		wx = w
 	}
 
-	wx.RegisterHandle("time", timeFunc)
-	wx.RegisterHandle("时间", timeFunc)
+	wx.RegisterTimeCmd()
 
 	wx.Start()
 	for gn, nn := range weGroups {

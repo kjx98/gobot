@@ -39,6 +39,7 @@ type Wecat struct {
 	auto        bool
 	bConnected  bool
 	robotName   string
+	defGroup    string
 	contacts    map[string]Contact
 }
 
@@ -105,6 +106,17 @@ func NewWecat(cfg Config) (*Wecat, error) {
 		contacts:    make(map[string]Contact),
 		auto:        true,
 	}, nil
+}
+
+func defTimeFunc(args []string) string {
+	tt := time.Now()
+	return fmt.Sprintf("%02d-%02d %02d:%02d:%02d", int(tt.Month()), tt.Day(),
+		tt.Hour(), tt.Minute(), tt.Second())
+}
+
+func (w *Wecat) RegisterTimeCmd() {
+	w.RegisterHandle("time", defTimeFunc)
+	w.RegisterHandle("时间", defTimeFunc)
 }
 
 // SetLogLevel
@@ -598,8 +610,7 @@ func (w *Wecat) handle(msg *Message) error {
 					(w.user.RemarkName != "" && strings.Contains(content, "@"+w.user.RemarkName)) {
 					content = strings.Replace(content, "@"+w.user.NickName, "", -1)
 					content = strings.Replace(content, "@"+w.user.RemarkName, "", -1)
-					//println("From group: ", w.getNickName(m.FromUserName))
-					log.Info("[*] ", w.getNickName(m.FromUserName), ": ", content)
+					log.Info("[**] ", w.getNickName(m.FromUserName), ": ", content)
 					cmds := strings.Split(unicodeTrim(content), ",")
 					if len(cmds) == 0 {
 						return nil
@@ -607,7 +618,10 @@ func (w *Wecat) handle(msg *Message) error {
 					//log.Info("cmds", cmds)
 					cmds[0] = strings.ToLower(cmds[0])
 					if cmdFunc, ok := handlers[strings.Trim(cmds[0], " \t")]; ok {
-						//println("cmd", cmds[0], "argc:", len(cmds[1:]))
+						if w.defGroup == "" {
+							w.defGroup = w.getNickName(m.FromUserName)
+							log.Info("[##] Set defGroup:", w.defGroup)
+						}
 						reply := cmdFunc(cmds[1:])
 						if reply != "" {
 							if err := w.SendMessage(reply, m.FromUserName); err != nil {
@@ -645,7 +659,6 @@ func (w *Wecat) handle(msg *Message) error {
 					}
 					cmds[0] = strings.ToLower(cmds[0])
 					if cmdFunc, ok := handlers[strings.Trim(cmds[0], " \t")]; ok {
-						//println("cmd", cmds[0], "argc:", len(cmds[1:]))
 						reply := cmdFunc(cmds[1:])
 						if reply != "" {
 							if err := w.SendMessage(reply, m.FromUserName); err != nil {
@@ -673,7 +686,7 @@ func (w *Wecat) handle(msg *Message) error {
 					case "来人":
 						w.auto = true
 					default:
-						log.Info("[#] ", w.user.NickName, ": ", m.Content)
+						log.Info("[*#] ", w.user.NickName, ": ", m.Content)
 						content := strings.Replace(m.Content, "@"+w.user.RemarkName, "", -1)
 						cmds := strings.Split(unicodeTrim(content), ",")
 						if len(cmds) == 0 {
@@ -681,10 +694,9 @@ func (w *Wecat) handle(msg *Message) error {
 						}
 						cmds[0] = strings.ToLower(cmds[0])
 						if cmdFunc, ok := handlers[strings.Trim(cmds[0], " \t")]; ok {
-							//println("cmd", cmds[0], "argc:", len(cmds[1:]))
 							reply := cmdFunc(cmds[1:])
 							if reply != "" {
-								if err := w.SendMessage(reply, m.FromUserName); err != nil {
+								if err := w.SendGroupMessage(reply, w.defGroup); err != nil {
 									return err
 								}
 								log.Info("[#] ", w.user.NickName, ": ", reply)
