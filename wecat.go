@@ -528,10 +528,20 @@ func (w *Wecat) run(desc string, f func() error) {
 
 func (w *Wecat) SendGroupMessage(message string, to string) error {
 	if to == "" {
+		if w.defGroup == "" {
+			return errNoGroup
+		}
 		to = w.defGroup
+	}
+	if to[:2] == "@@" {
+		log.Info("SendGroupMsg:", to, "--->", message)
+		return w.SendMessage(message, to)
 	}
 	if toGrp, ok := weGroups[to]; ok {
 		log.Info("SendGroupMsg:", toGrp, "--->", message)
+		return w.SendMessage(message, toGrp)
+	} else if toGrp, ok := weGroups["test群"]; ok {
+		log.Info("SendGroupMsg chg: ", toGrp, "--->", message)
 		return w.SendMessage(message, toGrp)
 	}
 	return errNoGroup
