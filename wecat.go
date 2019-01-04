@@ -547,7 +547,13 @@ func (w *Wecat) SendGroupMessage(message string, to string) error {
 	if toGrp, ok := weGroups[to]; ok {
 		log.Info("SendGroupMsg:", toGrp, "--->", message)
 		return w.SendMessage(message, toGrp)
-	} else if toGrp, ok := weGroups["test群"]; ok {
+	} else {
+		// try defGroup
+		if toGrp = w.defGroup; toGrp[:2] != "@@" {
+			if toGrp, ok = weGroups[toGrp]; !ok {
+				return errNoGroup
+			}
+		}
 		log.Info("SendGroupMsg chg: ", toGrp, "--->", message)
 		return w.SendMessage(message, toGrp)
 	}
