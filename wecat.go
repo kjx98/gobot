@@ -99,14 +99,21 @@ func NewWecat(cfg Config) (*Wecat, error) {
 	rand.Seed(time.Now().Unix())
 	randID := strconv.Itoa(rand.Int())
 
-	return &Wecat{
+	wx := Wecat{
 		cfg:         cfg,
 		client:      client,
 		deviceID:    "e" + randID[2:17],
 		baseRequest: make(map[string]interface{}),
 		contacts:    make(map[string]Contact),
 		auto:        true,
-	}, nil
+	}
+	// cfg.Uin does not work
+	/*
+		if cfg.Uin != "" {
+			wx.loginRes.Wxuin = cfg.Uin
+		}
+	*/
+	return &wx, nil
 }
 
 func defTimeFunc(args []string) string {
@@ -170,11 +177,8 @@ func (w *Wecat) GetUUID() error {
 
 func (w *Wecat) PushLogin() error {
 	if w.loginRes.Wxuin == "" {
-		if w.cfg.Uin == "" {
-			log.Error("Never logined", errUIN)
-			return errUIN
-		}
-		w.loginRes.Wxuin = w.cfg.Uin
+		log.Error("Never logined", errUIN)
+		return errUIN
 	}
 
 	uri := "https://wx.qq.com/cgi-bin/mmwebwx-bin/webwxpushloginurl?uin=" +
@@ -185,10 +189,13 @@ func (w *Wecat) PushLogin() error {
 	} else {
 		var res PushLoginResult
 		if err := json.Unmarshal(resp, &res); err != nil {
+			log.Error("PushLogin, json", err)
+			w.loginRes.Wxuin = ""
 			return err
 		}
 		if to.Int(res.RetCode) != 0 {
 			log.Error("PushLogin", res.Msg)
+			w.loginRes.Wxuin = ""
 			return errPushLogin
 		}
 		w.uuid = res.Uuid
@@ -636,7 +643,11 @@ func (w *Wecat) handle(msg *Message) error {
 					if cmdFunc, ok := handlers[strings.Trim(cmds[0], " \t")]; ok {
 						if w.defGroup == "" {
 							w.defGroup = w.getNickName(m.FromUserName)
-							log.Info("[##] Set defGroup:", w.defGroup)
+							if w.defGroup[:2] == "@@" {
+								w.defGroup = ""
+							} else {
+								log.Info("[##] Set defGroup:", w.defGroup)
+							}
 						}
 						reply := cmdFunc(cmds[1:])
 						if reply != "" {
