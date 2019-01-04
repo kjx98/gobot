@@ -643,11 +643,7 @@ func (w *Wecat) handle(msg *Message) error {
 					if cmdFunc, ok := handlers[strings.Trim(cmds[0], " \t")]; ok {
 						if w.defGroup == "" {
 							w.defGroup = w.getNickName(m.FromUserName)
-							if w.defGroup[:2] == "@@" {
-								w.defGroup = ""
-							} else {
-								log.Info("[##] Set defGroup:", w.defGroup)
-							}
+							log.Info("[##] Set defGroup:", w.defGroup)
 						}
 						reply := cmdFunc(cmds[1:])
 						if reply != "" {
