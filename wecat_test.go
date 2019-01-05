@@ -13,17 +13,19 @@ import (
 )
 
 var cfg = NewConfig("")
-var wx *Wecat
 
 func TestWxStart(t *testing.T) {
+	var wx *Wecat
 	fmt.Println(cfg)
 	wx.SetLogLevel(logging.WARNING)
-	if wx == nil {
-		w, err := NewWecat(cfg)
+	if w, err := NewWecat(cfg); err == nil {
 		if err != nil {
 			t.Error(err)
 		}
 		wx = w
+	} else {
+		t.Error("NewWecat", err)
+		return
 	}
 
 	wx.RegisterTimeCmd()
@@ -35,28 +37,18 @@ func TestWxStart(t *testing.T) {
 }
 
 func TestWxConnect(t *testing.T) {
-	if wx == nil {
-		w, err := NewWecat(cfg)
-		if err != nil {
-			t.Error(err)
-		}
-		wx = w
+	wx, err := NewWecat(cfg)
+	if err != nil {
+		t.Error(err)
+		return
 	}
 
+	// try load cookie
+	wx.LoadCookie()
 	wx.SetRobotName("JacK")
 	wx.SetLogLevel(logging.INFO)
 	if err := wx.Connect(); err != nil {
 		t.Error(err)
-	}
-}
-
-func TestSendGroupMessage(t *testing.T) {
-	if wx == nil {
-		w, err := NewWecat(cfg)
-		if err != nil {
-			t.Error(err)
-		}
-		wx = w
 	}
 	if wx.IsConnected() {
 		if err := wx.SendGroupMessage("test only!!!\n测试换行\n", "test群"); err != nil {

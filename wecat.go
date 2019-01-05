@@ -61,6 +61,7 @@ var (
 	errPushLogin    = errors.New("PushLogin error")
 )
 var log = logging.MustGetLogger("wecat")
+var cookiePath = "wxCookie.txt"
 
 // HandleFunc type
 //	used for RegisterHandle
@@ -107,12 +108,6 @@ func NewWecat(cfg Config) (*Wecat, error) {
 		contacts:    make(map[string]Contact),
 		auto:        true,
 	}
-	// cfg.Uin does not work
-	/*
-		if cfg.Uin != "" {
-			wx.loginRes.Wxuin = cfg.Uin
-		}
-	*/
 	return &wx, nil
 }
 
@@ -199,7 +194,7 @@ func (w *Wecat) PushLogin() error {
 			return errPushLogin
 		}
 		w.uuid = res.Uuid
-		log.Info("PushLogin ok, uuid:", res.Uuid, ",uin:", w.loginRes.Wxuin)
+		//log.Info("PushLogin ok, uuid:", res.Uuid, ",uin:", w.loginRes.Wxuin)
 	}
 
 	// resp:   { 'msg':'all ok', 'uuid':'xxx', 'ret':'0' }
@@ -304,6 +299,45 @@ func (w *Wecat) checkLogin(scanned bool) error {
 	}
 }
 
+func (w *Wecat) LoadCookie() error {
+	if fd, err := os.Open(cookiePath); err == nil {
+		defer fd.Close()
+		var cookies = []*http.Cookie{}
+		var lines []string
+		if buf, err := ioutil.ReadAll(fd); err != nil {
+			return err
+		} else {
+			lines = strings.Split(string(buf), "\n")
+		}
+		if len(lines) == 0 {
+			return nil
+		}
+		// try log cookie
+		uri := "https://wx.qq.com/cgi-bin/mmwebwx-bin/webwxpushloginurl"
+		if url, err := url.Parse(uri); err == nil {
+			//ss := ""
+			for _, line := range lines {
+				ss := strings.Split(line, " ")
+				if len(ss) < 2 {
+					continue
+				}
+				var cc = http.Cookie{Name: ss[0], Value: ss[1]}
+				// set wxUin
+				if ss[0] == "wxuin" {
+					w.loginRes.Wxuin = ss[1]
+				}
+				if len(ss) > 2 {
+					cc.Expires = time.Unix(to.Int64(ss[2]), 0)
+				}
+				cookies = append(cookies, &cc)
+			}
+			// set cookie
+			w.client.Jar.SetCookies(url, cookies)
+		}
+	}
+	return nil
+}
+
 func (w *Wecat) redirect() error {
 	data, err := w.get(w.redirectURI)
 	if err != nil {
@@ -322,6 +356,18 @@ func (w *Wecat) redirect() error {
 	w.baseRequest["Sid"] = lr.Wxsid
 	w.baseRequest["Skey"] = lr.Skey
 	w.baseRequest["DeviceID"] = w.deviceID
+	if fd, err := os.Create(cookiePath); err == nil {
+		defer fd.Close()
+		// try log cookie
+		uri := "https://wx.qq.com/cgi-bin/mmwebwx-bin/webwxpushloginurl"
+		if url, err := url.Parse(uri); err == nil {
+			cookies := w.client.Jar.Cookies(url)
+			for _, cc := range cookies {
+				fmt.Fprintf(fd, "%s %s %d %s\n", cc.Name, cc.Value,
+					cc.Expires.Unix(), cc.RawExpires)
+			}
+		}
+	}
 	return nil
 }
 
@@ -549,7 +595,7 @@ func (w *Wecat) SendGroupMessage(message string, to string) error {
 		return w.SendMessage(message, toGrp)
 	} else {
 		// try defGroup
-		if toGrp = w.defGroup; toGrp[:2] != "@@" {
+		if toGrp = w.defGroup; len(toGrp) > 1 && toGrp[:2] != "@@" {
 			if toGrp, ok = weGroups[toGrp]; !ok {
 				return errNoGroup
 			}
