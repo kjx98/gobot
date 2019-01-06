@@ -718,7 +718,7 @@ func (w *Wecat) handle(msg *Message) error {
 						log.Info("[#] ", w.user.NickName, ": ", reply)
 					}
 				} else {
-					log.Info("From group: ", w.getNickName(m.FromUserName))
+					//log.Info("From group: ", w.getNickName(m.FromUserName))
 					contents := strings.Split(m.Content, ":<br/>")
 					log.Info("[*#] ", w.getNickName(contents[0]), ": ", contents[1])
 				}
