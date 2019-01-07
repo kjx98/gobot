@@ -761,7 +761,7 @@ func (w *Wecat) handle(msg *Message) error {
 					case "来人":
 						w.auto = true
 					default:
-						log.Info("[*#] ", w.user.NickName, ": ", m.Content)
+						//log.Info("[*#] ", w.user.NickName, ": ", m.Content)
 						content := strings.Replace(m.Content, "@"+w.user.RemarkName, "", -1)
 						cmds := strings.Split(unicodeTrim(content), ",")
 						if len(cmds) == 0 {
