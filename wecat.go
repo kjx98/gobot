@@ -83,7 +83,6 @@ var (
 
 var handlers = map[string]HandlerFunc{}
 var weGroups = map[string]string{}
-var timeFmt = "01-02 15:04:05"
 
 func NewWecat(cfg Config) (*Wecat, error) {
 	jar, err := cookiejar.New(nil)
@@ -111,12 +110,15 @@ func NewWecat(cfg Config) (*Wecat, error) {
 	return &wx, nil
 }
 
+//go: noline
 func defTimeFunc(args []string) string {
+	//var timeFmt = "01-02 15:04:05"
 	tt := time.Now()
 	if len(args) > 0 && strings.ToUpper(strings.Trim(args[0], " \t")) == "UTC" {
 		tt = tt.UTC()
 	}
-	return tt.Format(timeFmt)
+	//return tt.Format(timeFmt)
+	return tt.Format("01-02 15:04:05")
 }
 
 func (w *Wecat) RegisterTimeCmd() {
