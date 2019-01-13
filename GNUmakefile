@@ -40,6 +40,7 @@ bin/SDL2.dll:
 	@cp /usr/x86_64-w64-mingw32/sys-root/mingw/bin/SDL2.dll bin
 
 clean:
+	rm wxCookie.txt
 
 distclean: clean
 	@rm -rf bin

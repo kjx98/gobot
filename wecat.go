@@ -66,6 +66,7 @@ var cookiePath = "wxCookie.txt"
 // HandleFunc type
 //	used for RegisterHandle
 type HandlerFunc func(args []string) string
+type HookFunc func(args string)
 
 var (
 	wxHosts = []string{
@@ -83,6 +84,8 @@ var (
 
 var handlers = map[string]HandlerFunc{}
 var weGroups = map[string]string{}
+var hookName string
+var hookFunc HookFunc
 
 func NewWecat(cfg Config) (*Wecat, error) {
 	jar, err := cookiejar.New(nil)
@@ -417,8 +420,10 @@ func (w *Wecat) Init() error {
 	w.user = res.User
 	log.Infof("My name: %s, remarkName(%s), uin(%d)", w.user.UserName,
 		w.user.RemarkName, w.user.Uin)
-	// change RemarkName to robotName, for monitor
-	if w.robotName != "" {
+	if hookName != "" {
+		w.user.RemarkName = hookName
+	} else if w.robotName != "" {
+		// change RemarkName to robotName, for monitor
 		w.user.RemarkName = w.robotName
 	}
 	w.syncKey = res.SyncKey
@@ -640,6 +645,15 @@ func (w *Wecat) SendMessage(message string, to string) error {
 	return nil
 }
 
+func (w *Wecat) RegisterKook(hookStr string, hook HookFunc) {
+	if hook == nil {
+		hookName = ""
+	} else {
+		hookName = hookStr
+		hookFunc = hook
+	}
+}
+
 func (w *Wecat) RegisterHandle(cmd string, cmdFunc HandlerFunc) error {
 	cmd = strings.ToLower(cmd)
 	if _, ok := handlers[cmd]; ok {
@@ -688,6 +702,10 @@ func (w *Wecat) handle(msg *Message) error {
 					content = strings.Replace(content, "@"+w.user.NickName, "", -1)
 					content = strings.Replace(content, "@"+w.user.RemarkName, "", -1)
 					log.Info("[**] ", w.getNickName(m.FromUserName), ": ", content)
+					if hookName != "" && hookFunc != nil {
+						hookFunc(content)
+						return nil
+					}
 					cmds := strings.Split(unicodeTrim(content), ",")
 					if len(cmds) == 0 {
 						return nil
