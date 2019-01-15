@@ -645,7 +645,7 @@ func (w *Wecat) SendMessage(message string, to string) error {
 	return nil
 }
 
-func (w *Wecat) RegisterKook(hookStr string, hook HookFunc) {
+func (w *Wecat) RegisterHook(hookStr string, hook HookFunc) {
 	if hook == nil {
 		hookName = ""
 	} else {
@@ -699,10 +699,15 @@ func (w *Wecat) handle(msg *Message) error {
 				if (w.robotName == "" && w.user.NickName != "" &&
 					strings.Contains(content, "@"+w.user.NickName)) ||
 					(w.user.RemarkName != "" && strings.Contains(content, "@"+w.user.RemarkName)) {
+					mayHook := hookName != "" && strings.Contains(content, "@"+hookName)
 					content = strings.Replace(content, "@"+w.user.NickName, "", -1)
 					content = strings.Replace(content, "@"+w.user.RemarkName, "", -1)
 					log.Info("[**] ", w.getNickName(m.FromUserName), ": ", content)
-					if hookName != "" && hookFunc != nil {
+					if w.defGroup == "" {
+						w.defGroup = w.getNickName(m.FromUserName)
+						log.Info("[##] Set defGroup:", w.defGroup)
+					}
+					if mayHook && hookFunc != nil {
 						hookFunc(content)
 						return nil
 					}
@@ -713,10 +718,6 @@ func (w *Wecat) handle(msg *Message) error {
 					//log.Info("cmds", cmds)
 					cmds[0] = strings.ToLower(cmds[0])
 					if cmdFunc, ok := handlers[strings.Trim(cmds[0], " \t")]; ok {
-						if w.defGroup == "" {
-							w.defGroup = w.getNickName(m.FromUserName)
-							log.Info("[##] Set defGroup:", w.defGroup)
-						}
 						reply := cmdFunc(cmds[1:])
 						if reply != "" {
 							if err := w.SendMessage(reply, m.FromUserName); err != nil {

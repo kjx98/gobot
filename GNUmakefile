@@ -19,12 +19,17 @@ MAKEFILE=GNUmakefile
 
 # We Use Compact Memory Model
 
-all: bin/rebot
+all: bin/rebot bin/wxjabot
 	@[ -d bin ] || exit
 
 bin/rebot: rebot/main.go sdl2.go config.go wecat.go
 	@[ -d bin ] || mkdir bin
 	go build -o bin/rebot rebot/main.go
+	@strip $@ || echo "rebot OK"
+
+bin/wxjabot: wxjabot/main.go sdl2.go config.go wecat.go
+	@[ -d bin ] || mkdir bin
+	go build -o bin/wxjabot wxjabot/main.go
 	@strip $@ || echo "rebot OK"
 
 win64: bin/rebotWin64.zip
