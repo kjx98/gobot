@@ -56,6 +56,7 @@ func main() {
 	} else {
 		wx = w
 	}
+	running := true
 	wxHook := func(args string) {
 		if rebot.IsConnected() {
 			log.Info("send wkpb:", args)
@@ -87,11 +88,11 @@ func main() {
 		retry := 0
 		// try Ping every 5 minutes
 		nextPing := time.Now().Unix() + pingInterval
-		ticker := time.NewTicker(time.Second * 10)
+		ticker := time.NewTicker(time.Second * 5)
 		// go routine for sendPing
 		go func() {
 			var curT int64
-			for wx.IsConnected() {
+			for running && wx.IsConnected() {
 				select {
 				case <-ticker.C:
 					curT = time.Now().Unix()
@@ -103,7 +104,7 @@ func main() {
 			}
 		}()
 
-		for wx.IsConnected() {
+		for running && wx.IsConnected() {
 			if rebot.IsConnected() {
 				rebot.Dail()
 			}
@@ -123,12 +124,15 @@ func main() {
 			}
 		}
 		ticker.Stop()
+		running = false
 		rebot.Close()
+		time.Sleep(time.Second * 2)
 		log.Warning("wxJabot exit!!!")
+		os.Exit(1)
 	}()
 
 	//wx.SetLogLevel(logging.WARNING)
-	for wx.IsConnected() {
+	for running && wx.IsConnected() {
 		in := bufio.NewReader(os.Stdin)
 		line, err := in.ReadString('\n')
 		if err != nil {
@@ -144,6 +148,8 @@ func main() {
 			rebot.SendMessage(tokens[1], tokens[0])
 		}
 	}
+	running = false
+	rebot.Close()
 }
 
 //  `%{color}%{time:15:04:05.000} %{shortfunc} ▶ %{level:.4s} %{id:03x}%{color:reset} %{message}`,
