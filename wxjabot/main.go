@@ -7,6 +7,7 @@ import (
 	"github.com/kjx98/gobot"
 	"github.com/kjx98/jabot"
 	"github.com/op/go-logging"
+	"time"
 
 	"os"
 	"strings"
@@ -16,6 +17,8 @@ var log = logging.MustGetLogger("wxJabot")
 var username = flag.String("username", "mon@quant.zqhy8.com", "username")
 var password = flag.String("password", "testme", "password")
 var wx *gobot.Wecat
+var wkPB = "wkpb@quant.zqhy8.com"
+var pingInterval int64 = 300 // 5 minutes
 
 func checkWxLive() {
 	if err := wx.Connect(); err != nil {
@@ -56,7 +59,7 @@ func main() {
 	wxHook := func(args string) {
 		if rebot.IsConnected() {
 			log.Info("send wkpb:", args)
-			rebot.SendMessage(args, "wkpb@quant.zqhy8.com")
+			rebot.SendMessage(args, wkPB)
 		}
 	}
 	rebotHook := func(args string) {
@@ -78,9 +81,54 @@ func main() {
 		fmt.Println("Connect", err)
 		return
 	}
-	go rebot.Dail()
+	//go rebot.Dail()
+	// start jabot daemon
+	go func() {
+		retry := 0
+		// try Ping every 5 minutes
+		nextPing := time.Now().Unix() + pingInterval
+		ticker := time.NewTicker(time.Second * 10)
+		// go routine for sendPing
+		go func() {
+			var curT int64
+			for wx.IsConnected() {
+				select {
+				case <-ticker.C:
+					curT = time.Now().Unix()
+				}
+				if rebot.IsConnected() && curT >= nextPing {
+					rebot.Ping()
+					nextPing = curT + pingInterval
+				}
+			}
+		}()
+
+		for wx.IsConnected() {
+			if rebot.IsConnected() {
+				rebot.Dail()
+			}
+			retry++
+			if retry > 5 {
+				time.Sleep(time.Second * 60)
+			} else {
+				time.Sleep(time.Second * 5)
+			}
+			if err := rebot.Connect(); err == nil {
+				retry = 0
+				nextPing = time.Now().Unix() + pingInterval
+				rebot.AddChat(wkPB)
+				log.Warning("Jabot reconnected ok")
+			} else {
+				log.Error("jabot connect", err)
+			}
+		}
+		ticker.Stop()
+		rebot.Close()
+		log.Warning("wxJabot exit!!!")
+	}()
+
 	//wx.SetLogLevel(logging.WARNING)
-	for rebot.IsConnected() {
+	for wx.IsConnected() {
 		in := bufio.NewReader(os.Stdin)
 		line, err := in.ReadString('\n')
 		if err != nil {
