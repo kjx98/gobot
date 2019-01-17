@@ -14,8 +14,8 @@ import (
 )
 
 var log = logging.MustGetLogger("wxJabot")
-var username = flag.String("username", "mon@quant.zqhy8.com", "username")
-var password = flag.String("password", "testme", "password")
+var username = flag.String("user", "mon@quant.zqhy8.com", "username")
+var password = flag.String("pass", "testme", "password")
 var wx *gobot.Wecat
 var wkPB = "wkpb@quant.zqhy8.com"
 var pingInterval int64 = 300 // 5 minutes
@@ -138,12 +138,24 @@ func main() {
 		if err != nil {
 			continue
 		}
-		if len(line) >= 4 && strings.ToLower(line[:4]) == "quit" {
+		line = strings.TrimRight(line, "\n")
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		tokens := strings.SplitN(line, " ", 2)
+		if strings.ToLower(tokens[0]) == "quit" {
 			break
 		}
-		line = strings.TrimRight(line, "\n")
+		switch strings.ToLower(tokens[0]) {
+		case "list":
+			contacts := rebot.GetContacts()
+			for _, cc := range contacts {
+				fmt.Println("Contact:", cc.Name, " Jid:", cc.Jid, " NickName:",
+					cc.NickName)
+			}
+		}
 
-		tokens := strings.SplitN(line, " ", 2)
 		if len(tokens) == 2 {
 			rebot.SendMessage(tokens[1], tokens[0])
 		}
