@@ -14,7 +14,6 @@ import (
 	"net/url"
 	"os"
 	"regexp"
-	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -100,12 +99,12 @@ func NewWecat(cfg Config) (*Wecat, error) {
 	}
 
 	rand.Seed(time.Now().Unix())
-	randID := strconv.Itoa(rand.Int())
+	randID := to.String(rand.Int())
 
 	wx := Wecat{
 		cfg:         cfg,
 		client:      client,
-		deviceID:    "e" + randID[2:17],
+		deviceID:    "ebot" + randID[2:17],
 		baseRequest: make(map[string]interface{}),
 		contacts:    make(map[string]Contact),
 		auto:        true,
@@ -613,16 +612,17 @@ func (w *Wecat) SendGroupMessage(message string, to string) error {
 	return errNoGroup
 }
 
-func (w *Wecat) SendMessage(message string, to string) error {
+func (w *Wecat) SendMessage(message string, toAddr string) error {
 	uri := w.baseURI + "/webwxsendmsg?pass_ticket=" + w.loginRes.PassTicket
-	clientMsgID := w.timestamp() + "0" + strconv.Itoa(rand.Int())[3:6]
+	rId := to.String(rand.Int() + 1000000)
+	clientMsgID := w.timestamp() + "0" + rId[3:6]
 	params := make(map[string]interface{})
 	params["BaseRequest"] = w.baseRequest
 	msg := make(map[string]interface{})
 	msg["Type"] = 1
 	msg["Content"] = message
 	msg["FromUserName"] = w.user.UserName
-	msg["ToUserName"] = to
+	msg["ToUserName"] = toAddr
 	msg["LocalID"] = clientMsgID
 	msg["ClientMsgId"] = clientMsgID
 	msg["Status"] = 3
