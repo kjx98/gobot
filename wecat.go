@@ -417,14 +417,14 @@ func (w *Wecat) Init() error {
 	}
 
 	w.user = res.User
-	log.Infof("My name: %s, remarkName(%s), uin(%d)", w.user.UserName,
-		w.user.RemarkName, w.user.Uin)
 	if hookName != "" {
 		w.user.RemarkName = hookName
 	} else if w.robotName != "" {
 		// change RemarkName to robotName, for monitor
 		w.user.RemarkName = w.robotName
 	}
+	log.Infof("My name: %s, remarkName(%s), uin(%d)", w.user.UserName,
+		w.user.RemarkName, w.user.Uin)
 	w.syncKey = res.SyncKey
 
 	if retC := res.BaseResponse.Ret; retC != 0 {
@@ -696,11 +696,9 @@ func (w *Wecat) handle(msg *Message) error {
 		case 1:
 			if m.FromUserName[:2] == "@@" { //群消息
 				content := strings.Split(m.Content, ":<br/>")[1]
-				if (w.robotName == "" && w.user.NickName != "" &&
-					strings.Contains(content, "@"+w.user.NickName)) ||
-					(w.user.RemarkName != "" && strings.Contains(content, "@"+w.user.RemarkName)) {
+				if w.user.RemarkName != "" && strings.Contains(content, "@"+w.user.RemarkName) {
 					mayHook := hookName != "" && strings.Contains(content, "@"+hookName)
-					content = strings.Replace(content, "@"+w.user.NickName, "", -1)
+					//content = strings.Replace(content, "@"+w.user.NickName, "", -1)
 					content = strings.Replace(content, "@"+w.user.RemarkName, "", -1)
 					log.Info("[**] ", w.getNickName(m.FromUserName), ": ", content)
 					if w.defGroup == "" {
