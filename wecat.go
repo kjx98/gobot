@@ -16,7 +16,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
-	"unicode"
+	//"unicode"
 
 	"github.com/op/go-logging"
 
@@ -116,7 +116,7 @@ func NewWecat(cfg Config) (*Wecat, error) {
 func defTimeFunc(args []string) string {
 	//var timeFmt = "01-02 15:04:05"
 	tt := time.Now()
-	if len(args) > 0 && strings.ToUpper(strings.Trim(args[0], " \t")) == "UTC" {
+	if len(args) > 0 && strings.ToUpper(strings.TrimSpace(args[0])) == "UTC" {
 		tt = tt.UTC()
 	}
 	//return tt.Format(timeFmt)
@@ -161,7 +161,7 @@ func (w *Wecat) GetUUID() error {
 	for _, d := range datas {
 		kvs := strings.Split(d, " = ")
 		if len(kvs) == 2 {
-			res[strings.Trim(kvs[0], " ")] = strings.Trim(strings.Trim(kvs[1], " "), "\"")
+			res[strings.TrimSpace(kvs[0])] = strings.Trim(strings.Trim(kvs[1], " "), "\"")
 		}
 	}
 	if res["window.QRLogin.code"] == "200" {
@@ -671,6 +671,7 @@ func (w *Wecat) getNickName(userName string) string {
 	return userName
 }
 
+/*
 func unicodeTrim(ss string) string {
 	ru := []rune(ss)
 	for i := 0; i < len(ru); i++ {
@@ -680,6 +681,7 @@ func unicodeTrim(ss string) string {
 	}
 	return ""
 }
+*/
 
 func (w *Wecat) handle(msg *Message) error {
 	for _, contact := range msg.ModContactList {
@@ -696,6 +698,10 @@ func (w *Wecat) handle(msg *Message) error {
 		case 1:
 			if m.FromUserName[:2] == "@@" { //群消息
 				content := strings.Split(m.Content, ":<br/>")[1]
+				content = strings.TrimSpace(content)
+				if content == "" {
+					break
+				}
 				if w.user.RemarkName != "" && strings.Contains(content, "@"+w.user.RemarkName) {
 					mayHook := hookName != "" && strings.Contains(content, "@"+hookName)
 					//content = strings.Replace(content, "@"+w.user.NickName, "", -1)
@@ -709,13 +715,14 @@ func (w *Wecat) handle(msg *Message) error {
 						hookFunc(content)
 						return nil
 					}
-					cmds := strings.Split(unicodeTrim(content), ",")
+					//cmds := strings.Split(unicodeTrim(content), ",")
+					cmds := strings.Split(content, ",")
 					if len(cmds) == 0 {
 						return nil
 					}
 					//log.Info("cmds", cmds)
 					cmds[0] = strings.ToLower(cmds[0])
-					if cmdFunc, ok := handlers[strings.Trim(cmds[0], " \t")]; ok {
+					if cmdFunc, ok := handlers[strings.TrimSpace(cmds[0])]; ok {
 						reply := cmdFunc(cmds[1:])
 						if reply != "" {
 							if err := w.SendMessage(reply, m.FromUserName); err != nil {
@@ -747,12 +754,13 @@ func (w *Wecat) handle(msg *Message) error {
 						return nil
 					}
 					//log.Info("[*] ", w.getNickName(m.FromUserName), ": ", m.Content)
-					cmds := strings.Split(unicodeTrim(m.Content), ",")
+					//cmds := strings.Split(unicodeTrim(m.Content), ",")
+					cmds := strings.Split(strings.TrimSpace(m.Content), ",")
 					if len(cmds) == 0 {
 						return nil
 					}
 					cmds[0] = strings.ToLower(cmds[0])
-					if cmdFunc, ok := handlers[strings.Trim(cmds[0], " \t")]; ok {
+					if cmdFunc, ok := handlers[strings.TrimSpace(cmds[0])]; ok {
 						reply := cmdFunc(cmds[1:])
 						if reply != "" {
 							if err := w.SendMessage(reply, m.FromUserName); err != nil {
@@ -782,12 +790,13 @@ func (w *Wecat) handle(msg *Message) error {
 					default:
 						//log.Info("[*#] ", w.user.NickName, ": ", m.Content)
 						content := strings.Replace(m.Content, "@"+w.user.RemarkName, "", -1)
-						cmds := strings.Split(unicodeTrim(content), ",")
+						//cmds := strings.Split(unicodeTrim(content), ",")
+						cmds := strings.Split(strings.TrimSpace(content), ",")
 						if len(cmds) == 0 {
 							return nil
 						}
 						cmds[0] = strings.ToLower(cmds[0])
-						if cmdFunc, ok := handlers[strings.Trim(cmds[0], " \t")]; ok {
+						if cmdFunc, ok := handlers[strings.TrimSpace(cmds[0])]; ok {
 							reply := cmdFunc(cmds[1:])
 							if reply != "" {
 								if err := w.SendGroupMessage(reply, ""); err != nil {
