@@ -844,14 +844,14 @@ func (w *Wecat) dailLoop(timerCnt int) error {
 		case 0:
 			switch selector {
 			case 2:
-				msg, err := w.WxSync()
-				if err != nil {
+				if msg, err := w.WxSync(); err == nil {
+					if err := w.handle(msg); err != nil {
+						log.Error(err)
+					}
+				} else {
 					log.Warning(err)
 				}
 
-				if err := w.handle(msg); err != nil {
-					log.Error(err)
-				}
 			case 0:
 				time.Sleep(time.Second)
 			case 7: // Enter/Leave chat Room
