@@ -325,6 +325,10 @@ func (w *Wecat) LoadCookie() error {
 				if len(ss) < 2 {
 					continue
 				}
+				if ss[0] == "defGroup" {
+					w.defGroup = ss[1]
+					continue
+				}
 				var cc = http.Cookie{Name: ss[0], Value: ss[1]}
 				// set wxUin
 				if ss[0] == "wxuin" {
@@ -591,6 +595,11 @@ func (w *Wecat) SendGroupMessage(message string, to string) error {
 			return errNoGroup
 		}
 		to = w.defGroup
+		if _, ok := weGroups[to]; !ok {
+			w.defGroup = ""
+			log.Warning("defGroup not exist! reset defGroup")
+			return errNoGroup
+		}
 	}
 	if to[:2] == "@@" {
 		log.Info("SendGroupMsg:", to, "--->", message)
