@@ -374,6 +374,10 @@ func (w *Wecat) redirect() error {
 				fmt.Fprintf(fd, "%s %s %d %s\n", cc.Name, cc.Value,
 					cc.Expires.Unix(), cc.RawExpires)
 			}
+			if w.defGroup != "" {
+				fmt.Fprintf(fd, "defGroup %s\n", w.defGroup)
+				log.Info("cache defGroup:", w.defGroup)
+			}
 		}
 	}
 	return nil
@@ -835,6 +839,9 @@ func (w *Wecat) handle(msg *Message) error {
 }
 
 func (w *Wecat) Dail() error {
+	if w.defGroup != "" {
+		log.Info("Dail defGroup:", w.defGroup)
+	}
 	if err := w.dailLoop(0); err != nil {
 		return err
 	}
