@@ -762,13 +762,14 @@ func (w *Wecat) handle(msg *Message) error {
 					log.Info("[*#] ", w.getNickName(contents[0]), ": ", contents[1])
 				}
 			} else {
+				content := m.Content
 				if m.FromUserName != w.user.UserName {
 					if w.cfg.Tuling.GroupOnly {
 						return nil
 					}
-					//log.Info("[*] ", w.getNickName(m.FromUserName), ": ", m.Content)
-					//cmds := strings.Split(unicodeTrim(m.Content), ",")
-					cmds := strings.Split(strings.TrimSpace(m.Content), ",")
+					//log.Info("[*] ", w.getNickName(m.FromUserName), ": ", content)
+					//cmds := strings.Split(unicodeTrim(content), ",")
+					cmds := strings.Split(strings.TrimSpace(content), ",")
 					if len(cmds) == 0 {
 						return nil
 					}
@@ -783,7 +784,7 @@ func (w *Wecat) handle(msg *Message) error {
 						}
 					} else {
 						if w.auto {
-							reply, err := w.getTulingReply(m.Content, m.FromUserName)
+							reply, err := w.getTulingReply(content, m.FromUserName)
 							if err != nil {
 								return err
 							}
@@ -795,28 +796,34 @@ func (w *Wecat) handle(msg *Message) error {
 						}
 					}
 				} else {
-					switch m.Content {
+					switch content {
 					case "退下":
 						w.auto = false
 					case "来人":
 						w.auto = true
 					default:
-						//log.Info("[*#] ", w.user.NickName, ": ", m.Content)
-						content := strings.Replace(m.Content, "@"+w.user.RemarkName, "", -1)
-						//cmds := strings.Split(unicodeTrim(content), ",")
-						cmds := strings.Split(strings.TrimSpace(content), ",")
-						if len(cmds) == 0 {
-							return nil
-						}
-						cmds[0] = strings.ToLower(cmds[0])
-						if cmdFunc, ok := handlers[strings.TrimSpace(cmds[0])]; ok {
-							reply := cmdFunc(cmds[1:])
-							if reply != "" {
-								if err := w.SendGroupMessage(reply, ""); err != nil {
-									log.Warning("send myself to defGroup", err)
-									return err
+						//log.Info("[*#] ", w.user.NickName, ": ", content)
+						if w.user.RemarkName != "" && strings.Contains(content, "@"+w.user.RemarkName) {
+							content = strings.Replace(content, "@"+w.user.RemarkName, "", -1)
+							if hookName != "" && hookFunc != nil {
+								hookFunc(content)
+								return nil
+							}
+							//cmds := strings.Split(unicodeTrim(content), ",")
+							cmds := strings.Split(strings.TrimSpace(content), ",")
+							if len(cmds) == 0 {
+								return nil
+							}
+							cmds[0] = strings.ToLower(cmds[0])
+							if cmdFunc, ok := handlers[strings.TrimSpace(cmds[0])]; ok {
+								reply := cmdFunc(cmds[1:])
+								if reply != "" {
+									if err := w.SendGroupMessage(reply, ""); err != nil {
+										log.Warning("send myself to defGroup", err)
+										return err
+									}
+									log.Info("[#] ", w.user.NickName, ": ", reply)
 								}
-								log.Info("[#] ", w.user.NickName, ": ", reply)
 							}
 						}
 					}
