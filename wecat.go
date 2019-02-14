@@ -927,7 +927,10 @@ func (w *Wecat) Start() {
 func (w *Wecat) Connect() error {
 	if w.loginRes.Wxuin != "" {
 		if err := w.PushLogin(); err != nil {
-			return err
+			//return err
+			log.Warning("PushLogin failed", err)
+			w.loginRes.Wxuin = ""
+			return w.Connect()
 		}
 	} else {
 		if err := w.GetUUID(); err != nil {
